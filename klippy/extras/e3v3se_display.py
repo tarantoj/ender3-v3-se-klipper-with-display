@@ -25,6 +25,13 @@ class E3v3seDisplay:
         # register for key events
         menu_keys.MenuKeys(config, self.key_event)
 
+        bridge = config.get('serial_bridge')
+
+        self.serial_bridge = self.printer.lookup_object(
+            'serial_bridge %s' %(bridge))
+        self.serial_bridge.register_callback(
+            self._handle_serial_bridge_response)
+
         self._update_interval = 1
         self._update_timer = self.reactor.register_timer(self._screen_update)
 
@@ -51,10 +58,16 @@ class E3v3seDisplay:
 
     def encoder_has_data(self):
         self.log("Key event")
-        return 
+    
+    def _handle_serial_bridge_response(self, data):
+        byte_debug = ' '.join(['0x{:02x}'.format(byte) for byte in data])
+        self.log("Received message: " + byte_debug)
+    
+    def send_text(self, text):
+        self.serial_bridge.send_text(text)
 
     def _screen_update(self, eventtime):
-        #self.log("Display update: ")
+        self.log("Display update")
         return eventtime + self._update_interval
 
     def _screen_init(self, eventtime):
