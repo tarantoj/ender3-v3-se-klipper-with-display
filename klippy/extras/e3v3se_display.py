@@ -531,7 +531,7 @@ class E3v3seDisplay:
             self.color_background_black,
             0,
             280,
-            "jpcurti/klipper_E3V3SE_display_mod",
+            "jpcurti/ender3-v3-se-klipper-with-display",
         )
 
     def lcdExit(self):
