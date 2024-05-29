@@ -210,27 +210,17 @@ class PrinterData:
         self.BABY_Z_VAR = new_offset
         self.sendGCode("ACCEPT")
 
-    def add_mm(self, axs, new_offset):
-        gc = "TESTZ Z={}".format(new_offset)
-        self.log(axs, gc)
-        self.sendGCode(gc)
-
-    def probe_calibrate(self):
-        self.sendGCode("G28")
-        self.sendGCode("PROBE_CALIBRATE")
-        self.sendGCode("G1 Z0")
-
     def postREST(self, path, json):
         self.log("postREST called")
 
 
     def GetFiles(self, refresh=False):
-        if not self.files or refresh:
-            self.files = ["not","implemented","yet"]
-        names = []
-        for fl in self.files:
-            names.append(fl["path"])
-        return names
+        sdcard = self.printer.lookup_object('virtual_sdcard')
+        files = sdcard.get_file_list(True)
+        self.names = []
+        for file, _ in files:
+            self.names.append(file)
+        return self.names
 
     def update_variable(self):
         gcm = self.printer.lookup_object(
@@ -316,26 +306,6 @@ class PrinterData:
             return total - duration
         return 0
 
-    def openAndPrintFile(self, filenum):
-        self.file_name = self.files[filenum]["path"]
-        self.postREST("/printer/print/start", json={"filename": self.file_name})
-
-    def cancel_job(self):  # fixed
-        self.log("Canceling job:")
-        self.postREST("/printer/print/cancel", json=None)
-
-    def pause_job(self):  # fixed
-        self.log("Pausing job:")
-        self.postREST("/printer/print/pause", json=None)
-
-    def resume_job(self):  # fixed
-        self.log("Resuming job:")
-        self.postREST("printer/print/resume", json=None)
-
-    def set_feedrate(self, fr):
-        self.feedrate_percentage = fr
-        self.sendGCode("M220 S%s" % fr)
-
     def home(self, homeZ=False):  # fixed using gcode
         script = "G28 X Y"
         if homeZ:
@@ -355,22 +325,9 @@ class PrinterData:
             )
         )
 
-    def moveAbsolute(self, axis, position, speed):
-        self.sendGCode(
-            "%s \n%s %s%s F%s%s"
-            % (
-                "G90",
-                "G1",
-                axis,
-                position,
-                speed,
-                "\nG91" if not self.absolute_moves else "",
-            )
-        )
-
-    def sendGCode(self, gcode):
-        self.log("sendGcode called")
-        # self.postREST("/printer/gcode/script", json={"script": gcode})
+    def SendGCode(self, Gcode):
+        gcode = self.printer.lookup_object('gcode')
+        gcode._process_commands([Gcode])
 
     def disable_all_heaters(self):
         self.setExtTemp(0)
@@ -389,16 +346,6 @@ class PrinterData:
                 self.material_preset[1].bed_temp, self.material_preset[1].hotend_temp
             )
 
-    def save_settings(self):
-        self.log("saving settings")
-        return True
-
-    def setExtTemp(self, target, toolnum=0):
-        self.sendGCode("M104 T%s S%s" % (toolnum, target))
-
-    def setBedTemp(self, target):
-        self.sendGCode("M140 S%s" % target)
-
     def preHeat(self, bedtemp, exttemp, toolnum=0):
         # these work but invoke a wait which hangs the screen until they finish.
         # 		self.sendGCode('M140 S%s\nM190 S%s' % (bedtemp, bedtemp))
@@ -406,8 +353,48 @@ class PrinterData:
         self.setBedTemp(bedtemp)
         self.setExtTemp(exttemp)
 
+    
+    def OpenAndPrintFile(self, filenum):
+        sdcard = self.printer.lookup_object('virtual_sdcard')
+        files = sdcard.cmd_SDCARD_PRINT_FILE(self.names[filenum])
+
+    def SendGCode(self, Gcode):
+        self.gcode._process_commands([Gcode])
+
+    def probe_calibrate(self):
+        self.SendGCode('G28') # home the printer
+        self.SendGCode('PRTOUCH_PROBE_OFFSET CLEAR_NOZZLE=0 APPLY_Z_ADJUST=1') # use the prtouch to find the z offset and apply it
+
+    def resume_job(self):
+        self.SendGCode('RESUME') # resume the print
+
+    def pause_job(self):
+        self.SendGCode('PAUSE') # pause the print
+
+    def cancel_job(self):
+        self.SendGCode('CANCEL_PRINT') # cancel the print
+
+    def set_feedrate(self, value):
+        self.SendGCode('M220 S' + str(value)) # set the feedrate through the M220 gcode command
+
+    def moveAbsolute(self, axis, pos, feedrate):
+        self.SendGCode('M82') # change to absolute positioning
+        self.SendGCode('G1 {}{} F{}'.format(axis, str(pos), str(feedrate))) # move the specified axis at the set feedrate
+
+    def save_settings(self):
+        self.SendGCode('SAVE_CONFIG') # save the current configuration changes
+
+    def setExtTemp(self, target, toolnum=0):
+        self.sendGCode("M104 T%s S%s" % (toolnum, str(target)))
+
+    def setExtTemp(self, target):
+        self.SendGCode('M104 S' + str(target))
+
     def setZOffset(self, offset):
-        self.sendGCode("SET_GCODE_OFFSET Z=%s MOVE=1" % offset)
+        self.SendGCode('SET_GCODE_OFFSET Z={} MOVE=1'.format(str(offset)))
+
+    def add_mm(self, axis, zoffset):
+        self.SendGCode('TESTZ Z=' + str(zoffset))
 
     def log(self, msg, *args, **kwargs):
         if self._logging:
@@ -415,3 +402,7 @@ class PrinterData:
 
     def error(self, msg, *args, **kwargs):
         logging.error("PrinterData: " + str(msg))
+
+
+def load_config(config):
+    return PrinterData(config)
