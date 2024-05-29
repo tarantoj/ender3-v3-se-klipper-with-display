@@ -128,9 +128,9 @@ class PrinterSerialBridge:
     def send_text(self, msg):
         self.send_serial(msg.encode('utf-8'))
     
-    def send_bytes(self, msg):
-        byte_debug = ' '.join(['0x{:02x}'.format(byte) for byte in msg])
-        self.log("Sending bytes: " + byte_debug)
+    def write(self, msg):
+        #byte_debug = ' '.join(['0x{:02x}'.format(byte) for byte in msg])
+        #self.log("Sending bytes: " + byte_debug)
         self.serial_bridge_send_cmd.send([self.oid, msg, 4])
 
 
