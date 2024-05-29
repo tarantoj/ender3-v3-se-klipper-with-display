@@ -2727,7 +2727,7 @@ class E3v3seDisplay:
             self.color_background_black,
             30,
             230,
-            "E3V3SE_display_klipper",
+            "ender3-v3-se-klipper-with-display",
         )
         self.Draw_Status_Area()
 
