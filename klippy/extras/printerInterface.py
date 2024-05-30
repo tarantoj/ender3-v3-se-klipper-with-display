@@ -281,8 +281,8 @@ class PrinterData:
 
     def printingIsPaused(self):
         return (
-            self.job_Info["print_stats"]["state"] == "paused"
-            or self.job_Info["print_stats"]["state"] == "pausing"
+            self.job_Info["state"] == "paused"
+            or self.job_Info["state"] == "pausing"
         )
 
     def getPercent(self):
@@ -298,7 +298,7 @@ class PrinterData:
             "virtual_sdcard").get_status(self.reactor.monotonic())
         if self.virtual_sdcard_stats:
             if self.virtual_sdcard_stats["is_active"]:
-                return self.job_Info["print_stats"]["print_duration"]
+                return self.job_Info["print_duration"]
         return 0
 
     def remain(self):
