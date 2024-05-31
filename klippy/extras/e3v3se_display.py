@@ -484,56 +484,14 @@ class E3v3seDisplay:
     def handle_ready(self):
         self.reactor.register_timer(
             self._reset_screen, self.reactor.monotonic())
-        
-        self.HMI_ShowBoot()
-        
+         
     def _reset_screen(self, eventtime):
         self.log("Reset")
         self.reactor.register_timer(
             self._screen_init, self.reactor.monotonic() + 2.)
         return self.reactor.NEVER
 
-    def HMI_ShowBoot(self):
-        self.lcd.clear_screen(self.color_background_black)
-
-        self.lcd.draw_string(
-            False,
-            self.lcd.font_8x8,
-            self.color_white,
-            self.color_background_black,
-            55,
-            20,
-            "Klipper E3V3SE ",
-        )
-        self.lcd.draw_string(
-            False,
-            self.lcd.font_8x8,
-            self.color_white,
-            self.color_background_black,
-            70,
-            50,
-            "display mod",
-        )
-        # Todo: QR
-        self.lcd.draw_string(
-            False,
-            self.lcd.font_8x8,
-            self.color_white,
-            self.color_background_black,
-            80,
-            250,
-            "Github: ",
-        )
-        self.lcd.draw_string(
-            False,
-            self.lcd.font_8x8,
-            self.color_white,
-            self.color_background_black,
-            0,
-            280,
-            "jpcurti/ender3-v3-se-klipper-with-display",
-        )
-
+    
     def lcdExit(self):
         logging.info("Shutting down the LCD")
         self.lcd.set_backlight_brightness(0)
