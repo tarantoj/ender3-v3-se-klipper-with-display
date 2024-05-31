@@ -155,6 +155,7 @@ class PrinterData:
         self.reactor = self.printer.get_reactor()
         self._logging = config.getboolean("logging", False)
         self.gcode = self.printer.lookup_object("gcode")
+        self.fl = []
         self.status = None
  
 
@@ -217,9 +218,11 @@ class PrinterData:
     def GetFiles(self, refresh=False):
         sdcard = self.printer.lookup_object('virtual_sdcard')
         files = sdcard.get_file_list(True)
+        self.fl = []
         self.names = []
         for file, _ in files:
-            self.names.append(file)
+            self.fl.append(file)
+            self.names.append(file.split('/')[-1])
         return self.names
 
     def update_variable(self):
@@ -278,8 +281,8 @@ class PrinterData:
 
     def printingIsPaused(self):
         return (
-            self.job_Info["print_stats"]["state"] == "paused"
-            or self.job_Info["print_stats"]["state"] == "pausing"
+            self.job_Info["state"] == "paused"
+            or self.job_Info["state"] == "pausing"
         )
 
     def getPercent(self):
@@ -295,7 +298,7 @@ class PrinterData:
             "virtual_sdcard").get_status(self.reactor.monotonic())
         if self.virtual_sdcard_stats:
             if self.virtual_sdcard_stats["is_active"]:
-                return self.job_Info["print_stats"]["print_duration"]
+                return self.job_Info["print_duration"]
         return 0
 
     def remain(self):
@@ -325,7 +328,7 @@ class PrinterData:
             )
         )
 
-    def SendGCode(self, Gcode):
+    def sendGCode(self, Gcode):
         gcode = self.printer.lookup_object('gcode')
         gcode._process_commands([Gcode])
 
@@ -354,47 +357,46 @@ class PrinterData:
         self.setExtTemp(exttemp)
 
     
-    def OpenAndPrintFile(self, filenum):
-        sdcard = self.printer.lookup_object('virtual_sdcard')
-        files = sdcard.cmd_SDCARD_PRINT_FILE(self.names[filenum])
+    def openAndPrintFile(self, filenum):
+        self.sendGCode('SDCARD_PRINT_FILE FILENAME="{}"'.format(self.fl[filenum]))
 
-    def SendGCode(self, Gcode):
+    def sendGCode(self, Gcode):
         self.gcode._process_commands([Gcode])
 
     def probe_calibrate(self):
-        self.SendGCode('G28') # home the printer
-        self.SendGCode('PRTOUCH_PROBE_OFFSET CLEAR_NOZZLE=0 APPLY_Z_ADJUST=1') # use the prtouch to find the z offset and apply it
+        self.sendGCode('G28') # home the printer
+        self.sendGCode('PRTOUCH_PROBE_OFFSET CLEAR_NOZZLE=0 APPLY_Z_ADJUST=1') # use the prtouch to find the z offset and apply it
 
     def resume_job(self):
-        self.SendGCode('RESUME') # resume the print
+        self.sendGCode('RESUME') # resume the print
 
     def pause_job(self):
-        self.SendGCode('PAUSE') # pause the print
+        self.sendGCode('PAUSE') # pause the print
 
     def cancel_job(self):
-        self.SendGCode('CANCEL_PRINT') # cancel the print
+        self.sendGCode('CANCEL_PRINT') # cancel the print
 
     def set_feedrate(self, value):
-        self.SendGCode('M220 S' + str(value)) # set the feedrate through the M220 gcode command
+        self.sendGCode('M220 S' + str(value)) # set the feedrate through the M220 gcode command
 
     def moveAbsolute(self, axis, pos, feedrate):
-        self.SendGCode('M82') # change to absolute positioning
-        self.SendGCode('G1 {}{} F{}'.format(axis, str(pos), str(feedrate))) # move the specified axis at the set feedrate
+        self.sendGCode('M82') # change to absolute positioning
+        self.sendGCode('G1 {}{} F{}'.format(axis, str(pos), str(feedrate))) # move the specified axis at the set feedrate
 
     def save_settings(self):
-        self.SendGCode('SAVE_CONFIG') # save the current configuration changes
+        self.sendGCode('SAVE_CONFIG') # save the current configuration changes
 
     def setExtTemp(self, target, toolnum=0):
         self.sendGCode("M104 T%s S%s" % (toolnum, str(target)))
 
     def setExtTemp(self, target):
-        self.SendGCode('M104 S' + str(target))
+        self.sendGCode('M104 S' + str(target))
 
     def setZOffset(self, offset):
-        self.SendGCode('SET_GCODE_OFFSET Z={} MOVE=1'.format(str(offset)))
+        self.sendGCode('SET_GCODE_OFFSET Z={} MOVE=1'.format(str(offset)))
 
     def add_mm(self, axis, zoffset):
-        self.SendGCode('TESTZ Z=' + str(zoffset))
+        self.sendGCode('TESTZ Z=' + str(zoffset))
 
     def log(self, msg, *args, **kwargs):
         if self._logging:
