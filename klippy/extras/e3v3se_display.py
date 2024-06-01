@@ -148,17 +148,19 @@ class E3v3seDisplay:
     # IMAGE LIBRARIES ID
     ICON = 0
     GIF_ICON = 27
-    language_chinese = 2
-    language_english = 4
-    language_german = 6
-    language_russian = 9
-    language_french = 12
-    language_turkish = 15
-    language_spanish = 17
-    language_italian = 19
-    language_portuguese = 21
-    language_japanese = 23
-    language_korean = 25
+    languages = {
+            "chinese": 2,
+            "english": 4,
+            "german": 6,
+            "russian": 9,
+            "french": 12,
+            "turkish": 15, 
+            "spanish": 17,
+            "italian": 19,
+            "portuguese": 21,
+            "japanese": 23, 
+            "korean": 25
+        }
 
     # ICON ID
     icon_logo = 0
@@ -428,6 +430,8 @@ class E3v3seDisplay:
         self.gcode = self.printer.lookup_object("gcode")
         self.printer.register_event_handler("klippy:ready", self.handle_ready)
         self.encoder_state = self.ENCODER_DIFF_NO
+        language = config.get("language", "english")
+        self.selected_language = self.languages[language]
 
 
         # register for key events
@@ -447,7 +451,7 @@ class E3v3seDisplay:
         self._update_interval = 1
         self._update_timer = self.reactor.register_timer(self.EachMomentUpdate)
 
-        self.selected_language = self.language_english
+
 
     def key_event(self, key, eventtime):
         if key == 'click':
