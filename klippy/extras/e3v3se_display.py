@@ -1,8 +1,9 @@
 import logging
 import time
-from .display import menu_keys
+from .display.menu_keys import MenuKeys
 from .TJC3224 import TJC3224_LCD
 from .printerInterface import PrinterData
+from .serial_bridge import PrinterSerialBridge
 
 def current_milli_time():
     return round(time.time() * 1000)
@@ -48,7 +49,97 @@ class select_t:
             self.now += 1
         else:
             self.now = v - 1
-        return self.changed()
+        return self.changed()  
+
+class E3V3SEMenuKeys(MenuKeys):
+    """
+    E3V3SEMenuKeys is a subclass of MenuKeys designed to 
+    customize initialization without modifying the original MenuKeys class.
+
+    This class defaults the pins for the menu keys to the corresponding
+    pins of the ender 3 v3 se 3d printer.
+    """
+    def __init__(self, config, callback):
+        self.printer = config.get_printer()
+        self.reactor = self.printer.get_reactor()
+        self.callback = callback
+        buttons = self.printer.load_object(config, "buttons")
+        # Register rotary encoder
+        encoder_pins = config.get('encoder_pins', '^PA12, ^PA11')
+        encoder_steps_per_detent = config.getchoice('encoder_steps_per_detent',
+                                                    {2: 2, 4: 4}, 4)
+        if encoder_pins is not None:
+            try:
+                pin1, pin2 = encoder_pins.split(',')
+            except:
+                raise config.error("Unable to parse encoder_pins")
+            buttons.register_rotary_encoder(pin1.strip(), pin2.strip(),
+                                            self.encoder_cw_callback,
+                                            self.encoder_ccw_callback,
+                                            encoder_steps_per_detent)
+        self.encoder_fast_rate = config.getfloat('encoder_fast_rate',
+                                                 .030, above=0.)
+        self.last_encoder_cw_eventtime = 0
+        self.last_encoder_ccw_eventtime = 0
+        # Register click button
+        self.is_short_click = False
+        self.click_timer = self.reactor.register_timer(self.long_click_event)
+        self.register_click_button(config, 'click_pin', self.click_callback, False,  '^!PB1')
+
+    def register_click_button(self, config, name, callback, push_only=True, default_value=None,):
+        pin = config.get(name, default_value)
+        if pin is None:
+            return
+        buttons = self.printer.lookup_object("buttons")
+        if config.get('analog_range_' + name, None) is None:
+            if push_only:
+                buttons.register_button_push(pin, callback)
+            else:
+                buttons.register_buttons([pin], callback)
+            return
+        amin, amax = config.getfloatlist('analog_range_' + name, count=2)
+        pullup = config.getfloat('analog_pullup_resistor', 4700., above=0.)
+        if push_only:
+            buttons.register_adc_button_push(pin, amin, amax, pullup, callback)
+        else:
+            buttons.register_adc_button(pin, amin, amax, pullup, callback)
+
+
+class E3V3SEPrinterSerialBridge(PrinterSerialBridge):
+    """
+    E3V3SEPrinterSerialBridge is a subclass of PrinterSerialBridge designed to 
+    customize initialization without modifying the original PrinterSerialBridge class.
+
+    This class defaults the serial pins, baud, eol and serial bridge config to specific
+    values used for the ender 3 v3 se 3d printer.
+    """
+    def __init__(self, config):
+        self.callbacks = []
+        self.printer = config.get_printer()
+        self.name = config.get_name().split()[-1]
+        self.eol = config.get('eol', default='')
+        self._ready = False
+        self.baud = config.getint("baud", 115200)
+        self.serial_config = config.getint("config", 3)
+        self._logging = config.getboolean("logging", False)
+
+        self.reactor = self.printer.get_reactor()
+        self.printer.register_event_handler("klippy:ready", self.handle_ready)
+        self.printer.register_event_handler("klippy:disconnect",
+            self.handle_disconnect)
+
+        ppins = self.printer.lookup_object("pins")
+        pin_params = ppins.lookup_pin(config.get("tx_pin", 'PA2'))
+        rx_pin_params = ppins.lookup_pin(config.get("rx_pin" , 'PA3'))
+        self.mcu = pin_params['chip']
+        self.oid = self.mcu.create_oid()
+        self.mcu.register_config_callback(self.build_config)
+
+        self.input_buffer = ""
+
+        self.serial_bridge = self.printer.load_object(config, "serial_bridge")
+        self.serial_bridge.setup_bridge(self)
+
 
 class E3v3seDisplay:
     
@@ -435,12 +526,15 @@ class E3v3seDisplay:
 
 
         # register for key events
-        menu_keys.MenuKeys(config, self.key_event)
+        E3V3SEMenuKeys(config, self.key_event)
 
-        bridge = config.get('serial_bridge')
+        self.serial_bridge = E3V3SEPrinterSerialBridge(self.config)
+   
+       
+        #bridge = config.get('serial_bridge')
 
-        self.serial_bridge = self.printer.lookup_object(
-            'serial_bridge %s' %(bridge))
+        #self.serial_bridge = self.printer.lookup_object(
+        #    'serial_bridge %s' %(bridge))
         self.serial_bridge.register_callback(
             self._handle_serial_bridge_response)
         
