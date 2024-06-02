@@ -359,7 +359,17 @@ class PrinterData:
         # 		self.sendGCode('M104 T%s S%s\nM109 T%s S%s' % (toolnum, exttemp, toolnum, exttemp))
         self.setBedTemp(bedtemp)
         self.setExtTemp(exttemp)
-
+    
+    def bedIsHeating(self):
+        bed = self.printer.lookup_object(
+            "heater_bed").get_status(self.reactor.monotonic())
+        return (int(bed["target"]) > int(bed["temperature"])) if bed else False
+         
+    def nozzleIsHeating(self):
+        extruder = self.printer.lookup_object(
+            "extruder").get_status(self.reactor.monotonic())
+        return (int(extruder["target"]) > int(extruder["temperature"])) if extruder else False
+    
     
     def openAndPrintFile(self, filenum):
         self.sendGCode('SDCARD_PRINT_FILE FILENAME="{}"'.format(self.fl[filenum]))

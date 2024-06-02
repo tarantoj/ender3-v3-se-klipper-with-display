@@ -352,6 +352,8 @@ class E3v3seDisplay:
     icon_Info_1 = 91
 
     icon_progress_0 = 145
+    icon_nozzle_heating_0 = 110
+    icon_bed_heating_0 = 125
 
     # TEXT ICON ID
     icon_TEXT_header_main = 1
@@ -852,7 +854,7 @@ class E3v3seDisplay:
                 self.pd.disable_all_heaters()
 
             elif self.select_prepare.now == self.PREPARE_CASE_LANG:  # Toggle Language
-                self.HMI_ToggleLanguage()
+                #self.HMI_ToggleLanguage()
                 self.Draw_Prepare_Menu()
 
     def HMI_Control(self):
@@ -1784,7 +1786,7 @@ class E3v3seDisplay:
                 self.select_PLA.now == self.PREHEAT_CASE_SAVE
             ):  # Save PLA configuration
                 success = self.pd.save_settings()
-                self.HMI_AudioFeedback(success)
+                #self.HMI_AudioFeedback(success)
 
     def HMI_TPUPreheatSetting(self):
         encoder_state = self.get_encoder_state()
@@ -1857,7 +1859,7 @@ class E3v3seDisplay:
                 self.select_TPU.now == self.PREHEAT_CASE_SAVE
             ):  # Save PLA configuration
                 success = self.pd.save_settings()
-                self.HMI_AudioFeedback(success)
+                #self.HMI_AudioFeedback(success)
 
     def HMI_ETemp(self):
         encoder_state = self.get_encoder_state()
@@ -2221,14 +2223,17 @@ class E3v3seDisplay:
         )
 
         # nozzle temp area
+        if self.pd.nozzleIsHeating():
+            self.lcd.draw_icon(True, self.GIF_ICON, self.icon_nozzle_heating_0, 6, 262)
+        else:
+            self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262) 
 
-        self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262)
         self.lcd.draw_int_value(
             True,
             True,
             0,
             self.lcd.font_8x8,
-            self.color_white,
+            self.color_yellow if self.pd.nozzleIsHeating() else self.color_white,
             self.color_background_black,
             3,
             26,
@@ -2258,13 +2263,17 @@ class E3v3seDisplay:
         )
 
         # bed temp area
-        self.lcd.draw_icon(True, self.ICON, self.icon_bedtemp, 6, 294)
+        if self.pd.bedIsHeating():
+            self.lcd.draw_icon(True, self.GIF_ICON, self.icon_bed_heating_0, 6, 294)
+        else:
+            self.lcd.draw_icon(True, self.ICON, self.icon_bedtemp, 6, 294)
+
         self.lcd.draw_int_value(
             True,
             True,
             0,
             self.lcd.font_8x8,
-            self.color_white,
+            self.color_yellow if self.pd.bedIsHeating() else self.color_white,
             self.color_background_black,
             3,
             26,
