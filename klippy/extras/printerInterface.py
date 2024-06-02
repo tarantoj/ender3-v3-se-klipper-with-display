@@ -389,8 +389,8 @@ class PrinterData:
     def setExtTemp(self, target, toolnum=0):
         self.sendGCode("M104 T%s S%s" % (toolnum, str(target)))
 
-    def setExtTemp(self, target):
-        self.sendGCode('M104 S' + str(target))
+    def setBedTemp(self, target):
+        self.sendGCode("M140 S%s" % str(target))
 
     def setZOffset(self, offset):
         self.sendGCode('SET_GCODE_OFFSET Z={} MOVE=1'.format(str(offset)))
