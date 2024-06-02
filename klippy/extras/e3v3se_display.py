@@ -352,6 +352,8 @@ class E3v3seDisplay:
     icon_Info_1 = 91
 
     icon_progress_0 = 145
+    icon_nozzle_heating_0 = 110
+    icon_bed_heating_0 = 125
 
     # TEXT ICON ID
     icon_TEXT_header_main = 1
@@ -2221,7 +2223,10 @@ class E3v3seDisplay:
         )
 
         # nozzle temp area
-        self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262) #TODO: Change icon to heating icon when heating
+        if self.pd.nozzleIsHeating():
+            self.lcd.draw_icon(True, self.GIF_ICON, self.icon_nozzle_heating_0, 6, 262)
+        else:
+            self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262) 
 
         self.lcd.draw_int_value(
             True,
@@ -2258,7 +2263,11 @@ class E3v3seDisplay:
         )
 
         # bed temp area
-        self.lcd.draw_icon(True, self.ICON, self.icon_bedtemp, 6, 294) #TODO: Change icon to heating icon when heating
+        if self.pd.bedIsHeating():
+            self.lcd.draw_icon(True, self.GIF_ICON, self.icon_bed_heating_0, 6, 294)
+        else:
+            self.lcd.draw_icon(True, self.ICON, self.icon_bedtemp, 6, 294)
+
         self.lcd.draw_int_value(
             True,
             True,
