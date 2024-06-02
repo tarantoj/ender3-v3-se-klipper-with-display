@@ -64,7 +64,7 @@ Features that are not available are shown as a pop-up:
 
 - This repository includes a proposed change proposed by [E4ST2W3ST](https://github.com/Klipper3d/klipper/commit/6469418d73be6743a7130b50fdb5a57d311435ca) to enable the MCU to act as a serial bridge between USB and the display serial port. Without his work, this project wouldn't exist.
 
-- This repository is forked and makes use of an already configuration for the ender 3 v3 se made by [0XD3ADs](https://github.com/0xD34D/klipper_ender3_v3_se), where a lot of different improvements were made.
+- This repository is forked and makes use of an already configuration for the ender 3 v3 se made by [0XD34D](https://github.com/0xD34D/klipper_ender3_v3_se), where a lot of different improvements were made.
 
 
 ## FAQ
