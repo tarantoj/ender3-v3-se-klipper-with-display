@@ -378,7 +378,7 @@ class TJC3224_LCD:
         self.byte(size)  # size
         self.word(font_color)
         self.word(background_color)
-        self.string(string)
+        self.string(string[:40])
         self.send()
 
     def draw_int_value(
