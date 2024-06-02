@@ -157,6 +157,10 @@ class PrinterData:
         self.gcode = self.printer.lookup_object("gcode")
         self.fl = []
         self.status = None
+
+    def handle_ready(self):
+        self.update_variable()
+        self.get_additional_values()
  
 
     def get_additional_values(self):
