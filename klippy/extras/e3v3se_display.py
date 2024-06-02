@@ -2385,7 +2385,7 @@ class E3v3seDisplay:
             3,
             191,
             300,
-            self.pd.BABY_Z_VAR * 100,
+            self.pd.BABY_Z_VAR * 1000,
         )
 
         if with_update:
