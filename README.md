@@ -44,7 +44,7 @@ The currently supported features are:
 | Set Z offset           | &check; |
 | Disable step motors    | &check; |
 | Preheat bed            | &check; |
-| Cooldown               | &cross; |
+| Cooldown               | &check; |
 | Set nozzle temperature | &check; |
 | Set bed temperature    | &check; |
 | Set max speed          | &cross; |
