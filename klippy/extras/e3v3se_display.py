@@ -580,6 +580,7 @@ class E3v3seDisplay:
         return self.reactor.NEVER
 
     def handle_ready(self):
+        self.pd.handle_ready()
         self.reactor.register_timer(
             self._reset_screen, self.reactor.monotonic())
          
