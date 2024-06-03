@@ -2139,21 +2139,21 @@ class E3v3seDisplay:
 
         if (
             self.pd.HMI_ValueStruct.offset_value
-            < (self.pd.Z_PROBE_OFFSET_RANGE_MIN) * 100
+            < (self.pd.Z_PROBE_OFFSET_RANGE_MIN) * 1000
         ):
             self.pd.HMI_ValueStruct.offset_value = (
-                self.pd.Z_PROBE_OFFSET_RANGE_MIN * 100
+                self.pd.Z_PROBE_OFFSET_RANGE_MIN * 1000
             )
         elif (
             self.pd.HMI_ValueStruct.offset_value
-            > (self.pd.Z_PROBE_OFFSET_RANGE_MAX) * 100
+            > (self.pd.Z_PROBE_OFFSET_RANGE_MAX) * 1000
         ):
             self.pd.HMI_ValueStruct.offset_value = (
-                self.pd.Z_PROBE_OFFSET_RANGE_MAX * 100
+                self.pd.Z_PROBE_OFFSET_RANGE_MAX * 1000
             )
 
         self.last_zoffset = self.dwin_zoffset
-        self.dwin_zoffset = self.pd.HMI_ValueStruct.offset_value / 100.0
+        self.dwin_zoffset = self.pd.HMI_ValueStruct.offset_value / 1000.0
         if self.pd.HAS_BED_PROBE:
             self.pd.add_mm("Z", self.dwin_zoffset - self.last_zoffset)
 
