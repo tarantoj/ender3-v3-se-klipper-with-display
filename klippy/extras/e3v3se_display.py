@@ -822,8 +822,6 @@ class E3v3seDisplay:
                 self.pd.sendGCode("G28")
             elif self.select_prepare.now == self.PREPARE_CASE_ZOFF:  # Z-offset
                 self.checkkey = self.Homeoffset
-                if self.pd.HAS_BED_PROBE:
-                    self.pd.probe_calibrate()
 
                 self.pd.HMI_ValueStruct.show_mode = -4
 
