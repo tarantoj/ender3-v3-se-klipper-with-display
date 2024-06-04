@@ -2527,11 +2527,11 @@ class E3v3seDisplay:
 
     def Draw_Confirm_Cancel_Buttons(self):
         if self.select_confirm.now == 1:
-            c1 = self.color_background_black
+            c1 = self.color_white
             c2 = self.color_popup_background
         elif self.select_cancel.now == 1:
             c1 = self.color_popup_background
-            c2 = self.color_background_black
+            c2 = self.color_white
         else:
             c1 = self.color_popup_background
             c2 = self.color_popup_background
@@ -3438,7 +3438,7 @@ class E3v3seDisplay:
         else:
             self.lcd.draw_rectangle(
                 1,
-                self.color_Bg_Red,
+                self.color_background_red,
                 11,
                 25,
                 self.MBASE(3) - 10,
@@ -3449,7 +3449,7 @@ class E3v3seDisplay:
                 False,
                 self.lcd.font_16x32,
                 self.color_yellow,
-                self.color_Bg_Red,
+                self.color_background_red,
                 ((self.lcd.screen_width) - 8 * 16) / 2,
                 self.MBASE(3),
                 "No Media",
