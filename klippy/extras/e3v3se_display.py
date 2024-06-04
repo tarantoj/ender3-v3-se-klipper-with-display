@@ -174,6 +174,8 @@ class E3v3seDisplay:
     select_tune = select_t()
     select_PLA = select_t()
     select_TPU = select_t()
+    select_confirm = select_t()
+    select_cancel = select_t()
 
     index_file = MROWS
     index_prepare = MROWS
@@ -345,9 +347,7 @@ class E3v3seDisplay:
     icon_continue_button = 96
     icon_continue_button_hovered = 96
     icon_cancel_button = 72
-    icon_cancel_button_hovered = 72
     icon_confirm_button = 73
-    icon_confim_button_hovered = 73
     icon_Info_0 = 90
     icon_Info_1 = 91
 
@@ -1031,9 +1031,13 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         if encoder_state == self.ENCODER_DIFF_CW:
-            self.Draw_Select_Highlight(False)
+            self.select_cancel.set(1)
+            self.select_confirm.reset()
+            self.Draw_Confirm_Cancel_Buttons()
         elif encoder_state == self.ENCODER_DIFF_CCW:
-            self.Draw_Select_Highlight(True)
+            self.select_confirm.set(1)
+            self.select_cancel.reset()
+            self.Draw_Confirm_Cancel_Buttons()
         elif encoder_state == self.ENCODER_DIFF_ENTER:
             if self.select_print.now == 1:  # pause window
                 if self.pd.HMI_flag.select_flag:
@@ -2521,16 +2525,32 @@ class E3v3seDisplay:
         fl = self.pd.GetFiles()[item]
         self.Draw_Menu_Line(row, self.icon_file, fl)
 
-    def Draw_Select_Highlight(self, sel):
-        self.pd.HMI_flag.select_flag = sel
-        if sel:
+    def Draw_Confirm_Cancel_Buttons(self):
+        if self.select_confirm.now == 1:
             c1 = self.color_background_black
             c2 = self.color_popup_background
-        else:
+        elif self.select_cancel.now == 1:
             c1 = self.color_popup_background
             c2 = self.color_background_black
-        self.lcd.draw_rectangle(0, c1, 30, 154, 111, 185)
-        self.lcd.draw_rectangle(0, c2, 129, 154, 211, 186)
+        else:
+            c1 = self.color_popup_background
+            c2 = self.color_popup_background
+        self.lcd.draw_rectangle(1, c1, 28, 152, 113, 187)
+        self.lcd.draw_rectangle(1, c2, 128, 152, 213, 187)
+        self.lcd.draw_icon(
+            True,
+            self.selected_language,
+            self.icon_confirm_button,
+            30,
+            self.HEADER_HEIGHT + 130,
+        )
+        self.lcd.draw_icon(
+            True,
+            self.selected_language,
+            self.icon_cancel_button,
+            130,
+            self.HEADER_HEIGHT + 130,
+        )
 
     def Draw_Printing_Screen(self):
         # Tune
@@ -3266,21 +3286,9 @@ class E3v3seDisplay:
         self.lcd.draw_rectangle(
             0, self.color_white, 15, self.HEADER_HEIGHT + 50, 225, 195
         )
-        self.lcd.draw_icon(
-            True,
-            self.selected_language,
-            self.icon_confim_button_hovered,
-            30,
-            self.HEADER_HEIGHT + 130,
-        )
-        self.lcd.draw_icon(
-            True,
-            self.selected_language,
-            self.icon_cancel_button_hovered,
-            130,
-            self.HEADER_HEIGHT + 130,
-        )
-        self.Draw_Select_Highlight(True)
+        self.select_cancel.set(1) # Cancel is the default option, so leave it hovered
+        self.select_confirm.reset()
+        self.Draw_Confirm_Cancel_Buttons()
 
     def Popup_Window_Home(self):
         """
@@ -3316,7 +3324,7 @@ class E3v3seDisplay:
 
         # Draw ok button
         self.lcd.draw_icon(
-            True, self.selected_language, self.icon_confim_button_hovered, 80, 154
+            True, self.selected_language, self.icon_confirm_button, 80, 154
         )
         self.lcd.draw_rectangle(0, self.color_white, 80, 154, 160, 185)
 
@@ -3361,7 +3369,7 @@ class E3v3seDisplay:
         )
         # Draw ok button
         self.lcd.draw_icon(
-            True, self.selected_language, self.icon_confim_button_hovered, 80, 154
+            True, self.selected_language, self.icon_confirm_button, 80, 154
         )
         self.lcd.draw_rectangle(0, self.color_white, 80, 154, 160, 185)
 
@@ -3678,7 +3686,7 @@ class E3v3seDisplay:
                 self.lcd.draw_icon(
                     True,
                     self.selected_language,
-                    self.icon_confim_button_hovered,
+                    self.icon_confirm_button,
                     86,
                     283,
                 )
