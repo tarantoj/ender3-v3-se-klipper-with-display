@@ -157,6 +157,10 @@ class PrinterData:
         self.gcode = self.printer.lookup_object("gcode")
         self.fl = []
         self.status = None
+
+    def handle_ready(self):
+        self.update_variable()
+        self.get_additional_values()
  
 
     def get_additional_values(self):
@@ -209,7 +213,7 @@ class PrinterData:
     def offset_z(self, new_offset):
         self.log('new z offset:', new_offset)
         self.BABY_Z_VAR = new_offset
-        self.sendGCode("ACCEPT")
+        self.sendGCode("SET_GCODE_OFFSET Z_ADJUST=+%s MOVE=1" % (new_offset))
 
     def postREST(self, path, json):
         self.log("postREST called")
@@ -355,7 +359,17 @@ class PrinterData:
         # 		self.sendGCode('M104 T%s S%s\nM109 T%s S%s' % (toolnum, exttemp, toolnum, exttemp))
         self.setBedTemp(bedtemp)
         self.setExtTemp(exttemp)
-
+    
+    def bedIsHeating(self):
+        bed = self.printer.lookup_object(
+            "heater_bed").get_status(self.reactor.monotonic())
+        return (int(bed["target"]) > int(bed["temperature"])) if bed else False
+         
+    def nozzleIsHeating(self):
+        extruder = self.printer.lookup_object(
+            "extruder").get_status(self.reactor.monotonic())
+        return (int(extruder["target"]) > int(extruder["temperature"])) if extruder else False
+    
     
     def openAndPrintFile(self, filenum):
         self.sendGCode('SDCARD_PRINT_FILE FILENAME="{}"'.format(self.fl[filenum]))
@@ -390,13 +404,13 @@ class PrinterData:
         self.sendGCode("M104 T%s S%s" % (toolnum, str(target)))
 
     def setBedTemp(self, target):
-        self.sendGCode('M104 S' + str(target))
+        self.sendGCode("M140 S%s" % str(target))
 
     def setZOffset(self, offset):
         self.sendGCode('SET_GCODE_OFFSET Z={} MOVE=1'.format(str(offset)))
 
     def add_mm(self, axis, zoffset):
-        self.sendGCode('TESTZ Z=' + str(zoffset))
+        pass # done in offsetZ
 
     def log(self, msg, *args, **kwargs):
         if self._logging:

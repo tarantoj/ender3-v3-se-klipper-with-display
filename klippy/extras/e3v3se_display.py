@@ -174,6 +174,8 @@ class E3v3seDisplay:
     select_tune = select_t()
     select_PLA = select_t()
     select_TPU = select_t()
+    select_confirm = select_t()
+    select_cancel = select_t()
 
     index_file = MROWS
     index_prepare = MROWS
@@ -345,13 +347,13 @@ class E3v3seDisplay:
     icon_continue_button = 96
     icon_continue_button_hovered = 96
     icon_cancel_button = 72
-    icon_cancel_button_hovered = 72
     icon_confirm_button = 73
-    icon_confim_button_hovered = 73
     icon_Info_0 = 90
     icon_Info_1 = 91
 
     icon_progress_0 = 145
+    icon_nozzle_heating_0 = 110
+    icon_bed_heating_0 = 125
 
     # TEXT ICON ID
     icon_TEXT_header_main = 1
@@ -580,6 +582,7 @@ class E3v3seDisplay:
         return self.reactor.NEVER
 
     def handle_ready(self):
+        self.pd.handle_ready()
         self.reactor.register_timer(
             self._reset_screen, self.reactor.monotonic())
          
@@ -819,8 +822,6 @@ class E3v3seDisplay:
                 self.pd.sendGCode("G28")
             elif self.select_prepare.now == self.PREPARE_CASE_ZOFF:  # Z-offset
                 self.checkkey = self.Homeoffset
-                if self.pd.HAS_BED_PROBE:
-                    self.pd.probe_calibrate()
 
                 self.pd.HMI_ValueStruct.show_mode = -4
 
@@ -851,7 +852,7 @@ class E3v3seDisplay:
                 self.pd.disable_all_heaters()
 
             elif self.select_prepare.now == self.PREPARE_CASE_LANG:  # Toggle Language
-                self.HMI_ToggleLanguage()
+                #self.HMI_ToggleLanguage()
                 self.Draw_Prepare_Menu()
 
     def HMI_Control(self):
@@ -1030,9 +1031,13 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         if encoder_state == self.ENCODER_DIFF_CW:
-            self.Draw_Select_Highlight(False)
+            self.select_cancel.set(1)
+            self.select_confirm.reset()
+            self.Draw_Confirm_Cancel_Buttons()
         elif encoder_state == self.ENCODER_DIFF_CCW:
-            self.Draw_Select_Highlight(True)
+            self.select_confirm.set(1)
+            self.select_cancel.reset()
+            self.Draw_Confirm_Cancel_Buttons()
         elif encoder_state == self.ENCODER_DIFF_ENTER:
             if self.select_print.now == 1:  # pause window
                 if self.pd.HMI_flag.select_flag:
@@ -1783,7 +1788,7 @@ class E3v3seDisplay:
                 self.select_PLA.now == self.PREHEAT_CASE_SAVE
             ):  # Save PLA configuration
                 success = self.pd.save_settings()
-                self.HMI_AudioFeedback(success)
+                #self.HMI_AudioFeedback(success)
 
     def HMI_TPUPreheatSetting(self):
         encoder_state = self.get_encoder_state()
@@ -1856,7 +1861,7 @@ class E3v3seDisplay:
                 self.select_TPU.now == self.PREHEAT_CASE_SAVE
             ):  # Save PLA configuration
                 success = self.pd.save_settings()
-                self.HMI_AudioFeedback(success)
+                #self.HMI_AudioFeedback(success)
 
     def HMI_ETemp(self):
         encoder_state = self.get_encoder_state()
@@ -2136,21 +2141,21 @@ class E3v3seDisplay:
 
         if (
             self.pd.HMI_ValueStruct.offset_value
-            < (self.pd.Z_PROBE_OFFSET_RANGE_MIN) * 100
+            < (self.pd.Z_PROBE_OFFSET_RANGE_MIN) * 1000
         ):
             self.pd.HMI_ValueStruct.offset_value = (
-                self.pd.Z_PROBE_OFFSET_RANGE_MIN * 100
+                self.pd.Z_PROBE_OFFSET_RANGE_MIN * 1000
             )
         elif (
             self.pd.HMI_ValueStruct.offset_value
-            > (self.pd.Z_PROBE_OFFSET_RANGE_MAX) * 100
+            > (self.pd.Z_PROBE_OFFSET_RANGE_MAX) * 1000
         ):
             self.pd.HMI_ValueStruct.offset_value = (
-                self.pd.Z_PROBE_OFFSET_RANGE_MAX * 100
+                self.pd.Z_PROBE_OFFSET_RANGE_MAX * 1000
             )
 
         self.last_zoffset = self.dwin_zoffset
-        self.dwin_zoffset = self.pd.HMI_ValueStruct.offset_value / 100.0
+        self.dwin_zoffset = self.pd.HMI_ValueStruct.offset_value / 1000.0
         if self.pd.HAS_BED_PROBE:
             self.pd.add_mm("Z", self.dwin_zoffset - self.last_zoffset)
 
@@ -2220,14 +2225,17 @@ class E3v3seDisplay:
         )
 
         # nozzle temp area
+        if self.pd.nozzleIsHeating():
+            self.lcd.draw_icon(True, self.GIF_ICON, self.icon_nozzle_heating_0, 6, 262)
+        else:
+            self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262) 
 
-        self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262)
         self.lcd.draw_int_value(
             True,
             True,
             0,
             self.lcd.font_8x8,
-            self.color_white,
+            self.color_yellow if self.pd.nozzleIsHeating() else self.color_white,
             self.color_background_black,
             3,
             26,
@@ -2257,13 +2265,17 @@ class E3v3seDisplay:
         )
 
         # bed temp area
-        self.lcd.draw_icon(True, self.ICON, self.icon_bedtemp, 6, 294)
+        if self.pd.bedIsHeating():
+            self.lcd.draw_icon(True, self.GIF_ICON, self.icon_bed_heating_0, 6, 294)
+        else:
+            self.lcd.draw_icon(True, self.ICON, self.icon_bedtemp, 6, 294)
+
         self.lcd.draw_int_value(
             True,
             True,
             0,
             self.lcd.font_8x8,
-            self.color_white,
+            self.color_yellow if self.pd.bedIsHeating() else self.color_white,
             self.color_background_black,
             3,
             26,
@@ -2375,7 +2387,7 @@ class E3v3seDisplay:
             3,
             191,
             300,
-            self.pd.BABY_Z_VAR * 100,
+            self.pd.BABY_Z_VAR * 1000,
         )
 
         if with_update:
@@ -2513,16 +2525,32 @@ class E3v3seDisplay:
         fl = self.pd.GetFiles()[item]
         self.Draw_Menu_Line(row, self.icon_file, fl)
 
-    def Draw_Select_Highlight(self, sel):
-        self.pd.HMI_flag.select_flag = sel
-        if sel:
-            c1 = self.color_background_black
+    def Draw_Confirm_Cancel_Buttons(self):
+        if self.select_confirm.now == 1:
+            c1 = self.color_white
             c2 = self.color_popup_background
+        elif self.select_cancel.now == 1:
+            c1 = self.color_popup_background
+            c2 = self.color_white
         else:
             c1 = self.color_popup_background
-            c2 = self.color_background_black
-        self.lcd.draw_rectangle(0, c1, 30, 154, 111, 185)
-        self.lcd.draw_rectangle(0, c2, 129, 154, 211, 186)
+            c2 = self.color_popup_background
+        self.lcd.draw_rectangle(1, c1, 28, 152, 113, 187)
+        self.lcd.draw_rectangle(1, c2, 128, 152, 213, 187)
+        self.lcd.draw_icon(
+            True,
+            self.selected_language,
+            self.icon_confirm_button,
+            30,
+            self.HEADER_HEIGHT + 130,
+        )
+        self.lcd.draw_icon(
+            True,
+            self.selected_language,
+            self.icon_cancel_button,
+            130,
+            self.HEADER_HEIGHT + 130,
+        )
 
     def Draw_Printing_Screen(self):
         # Tune
@@ -2554,7 +2582,7 @@ class E3v3seDisplay:
     def Draw_Print_ProgressElapsed(self):
         elapsed = self.pd.duration()  # print timer
         self.lcd.draw_int_value(
-            False,
+            True,
             True,
             1,
             self.lcd.font_8x8,
@@ -2566,7 +2594,7 @@ class E3v3seDisplay:
             elapsed / 3600,
         )
         self.lcd.draw_string(
-            False,
+            True,
             self.lcd.font_8x8,
             self.color_white,
             self.color_background_black,
@@ -2575,7 +2603,7 @@ class E3v3seDisplay:
             ":",
         )
         self.lcd.draw_int_value(
-            False,
+            True,
             True,
             1,
             self.lcd.font_8x8,
@@ -2592,7 +2620,7 @@ class E3v3seDisplay:
         if not remain_time:
             return  # time remaining is None during warmup.
         self.lcd.draw_int_value(
-            False,
+            True,
             True,
             1,
             self.lcd.font_8x8,
@@ -2604,7 +2632,7 @@ class E3v3seDisplay:
             remain_time / 3600,
         )
         self.lcd.draw_string(
-            False,
+            True,
             self.lcd.font_8x8,
             self.color_white,
             self.color_background_black,
@@ -2613,7 +2641,7 @@ class E3v3seDisplay:
             ":",
         )
         self.lcd.draw_int_value(
-            False,
+            True,
             True,
             1,
             self.lcd.font_8x8,
@@ -3258,21 +3286,9 @@ class E3v3seDisplay:
         self.lcd.draw_rectangle(
             0, self.color_white, 15, self.HEADER_HEIGHT + 50, 225, 195
         )
-        self.lcd.draw_icon(
-            True,
-            self.selected_language,
-            self.icon_confim_button_hovered,
-            30,
-            self.HEADER_HEIGHT + 130,
-        )
-        self.lcd.draw_icon(
-            True,
-            self.selected_language,
-            self.icon_cancel_button_hovered,
-            130,
-            self.HEADER_HEIGHT + 130,
-        )
-        self.Draw_Select_Highlight(True)
+        self.select_cancel.set(1) # Cancel is the default option, so leave it hovered
+        self.select_confirm.reset()
+        self.Draw_Confirm_Cancel_Buttons()
 
     def Popup_Window_Home(self):
         """
@@ -3308,7 +3324,7 @@ class E3v3seDisplay:
 
         # Draw ok button
         self.lcd.draw_icon(
-            True, self.selected_language, self.icon_confim_button_hovered, 80, 154
+            True, self.selected_language, self.icon_confirm_button, 80, 154
         )
         self.lcd.draw_rectangle(0, self.color_white, 80, 154, 160, 185)
 
@@ -3353,7 +3369,7 @@ class E3v3seDisplay:
         )
         # Draw ok button
         self.lcd.draw_icon(
-            True, self.selected_language, self.icon_confim_button_hovered, 80, 154
+            True, self.selected_language, self.icon_confirm_button, 80, 154
         )
         self.lcd.draw_rectangle(0, self.color_white, 80, 154, 160, 185)
 
@@ -3422,7 +3438,7 @@ class E3v3seDisplay:
         else:
             self.lcd.draw_rectangle(
                 1,
-                self.color_Bg_Red,
+                self.color_background_red,
                 11,
                 25,
                 self.MBASE(3) - 10,
@@ -3433,7 +3449,7 @@ class E3v3seDisplay:
                 False,
                 self.lcd.font_16x32,
                 self.color_yellow,
-                self.color_Bg_Red,
+                self.color_background_red,
                 ((self.lcd.screen_width) - 8 * 16) / 2,
                 self.MBASE(3),
                 "No Media",
@@ -3670,7 +3686,7 @@ class E3v3seDisplay:
                 self.lcd.draw_icon(
                     True,
                     self.selected_language,
-                    self.icon_confim_button_hovered,
+                    self.icon_confirm_button,
                     86,
                     283,
                 )
