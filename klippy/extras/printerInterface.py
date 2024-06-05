@@ -213,7 +213,7 @@ class PrinterData:
     def offset_z(self, new_offset):
         self.log('new z offset:', new_offset)
         self.BABY_Z_VAR = new_offset
-        self.sendGCode("SET_GCODE_OFFSET Z_ADJUST=+%s MOVE=1" % (new_offset))
+        self.sendGCode("SET_GCODE_OFFSET Z_ADJUST=%s MOVE=1" % (new_offset))
 
     def postREST(self, path, json):
         self.log("postREST called")
