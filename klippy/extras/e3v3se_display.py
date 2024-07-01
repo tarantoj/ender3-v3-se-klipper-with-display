@@ -3090,6 +3090,7 @@ class E3v3seDisplay:
         option if available. It also handles drawing the menu cursor and separators.
         """
         self.Clear_Main_Window()
+        self.pd.get_additional_values()
         # Draw "Move" on header
         self.lcd.draw_icon(
             False,
