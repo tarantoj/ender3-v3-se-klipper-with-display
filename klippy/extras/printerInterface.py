@@ -290,7 +290,7 @@ class PrinterData:
             "extruder").get_status(self.reactor.monotonic())
         fan = self.printer.lookup_object(
             "fan").get_status(self.reactor.monotonic())
-        fanSpeed = fan['speed']
+        fanSpeed = fan['speed'] * 100
         Update = False
         try:
             if self.thermalManager["temp_bed"]["celsius"] != int(bed["temperature"]):
