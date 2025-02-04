@@ -2536,7 +2536,7 @@ class E3v3seDisplay:
     def Draw_SDItem(self, item, row=0):
         fl = self.pd.GetFiles()[item]
         if len(self.pd.fl[item].split('/')) > self.pd.subdirIndex + 1:
-            self.Draw_Menu_Line(row, False, fl)
+            self.Draw_Menu_Line(row, self.icon_more, fl)
         else:
             self.Draw_Menu_Line(row, self.icon_file, fl)
 
