@@ -3336,11 +3336,11 @@ class E3v3seDisplay:
             self.lcd.font_8x16,
             self.color_background_red if draw_error else self.color_yellow,
             self.color_background_black,
-            4,
+            3,
             1,
-            WINDOW_WIDTH / 2 - (4 * self.STAT_CHR_W) / 2,
+            WINDOW_WIDTH / 2 - (5 * self.STAT_CHR_W) / 2,
             WINDOW_Y + self.MBASE(line_count) - 10,
-            self.manual_probe.status["z_position"]
+            self.manual_probe.status["z_position"] * self.MINUNITMULT
         )
 
         # Draw the error message
