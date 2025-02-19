@@ -381,6 +381,41 @@ class TJC3224_LCD:
         self.string(string[:40])
         self.send()
 
+    def draw_string_centered(
+        self, show_background, size, font_color, background_color, char_width, char_height, x, y, string
+    ):
+        """
+        Draw a string centered on the screen.
+
+        :param show_background: True to display the background color, False to not display the background color.
+        :type show_background: bool
+        :param size: Font size.
+        :type size: int
+        :param font_color: Character color.
+        :type font_color: int
+        :param background_color: Background color.
+        :type background_color: int
+        :param char_width: Width of the characters.
+        :type char_width: int
+        :param char_height: Height of the characters.
+        :type char_height: int
+        :param x: X-coordinate of the upper-left point.
+        :type x: int
+        :param y: Y-coordinate of the upper-left point.
+        :type y: int
+        :param string: The string to be drawn.
+        :type string: str
+        """
+        self.draw_string(
+            show_background,
+            size,
+            font_color,
+            background_color,
+            int(x - len(string * char_width) / 2.0),
+            int(y - char_height / 2.0),
+            string
+        )
+
     def draw_int_value(
         self,
         show_background,
