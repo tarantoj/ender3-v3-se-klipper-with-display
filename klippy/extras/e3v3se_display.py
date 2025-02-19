@@ -1,4 +1,5 @@
 import logging
+import math
 import time
 from .display.menu_keys import MenuKeys
 from .TJC3224 import TJC3224_LCD
@@ -158,7 +159,7 @@ class E3v3seDisplay:
     MENU_CHR_W = 8
     STAT_CHR_W = 10
 
-    MANUAL_PROBE_STEPS = [1.0, 0.5, 0.1]
+    MANUAL_PROBE_STEPS = [1.0, 0.1, 0.05]
 
     dwin_abort_flag = False  # Flag to reset feedrate, return to Home
 
@@ -536,7 +537,7 @@ class E3v3seDisplay:
 
         self.manual_probe = None
         self.manual_probe_step_index = 0
-
+        self.stepper_z = config.getsection("stepper_z")
 
         # register for key events
         E3V3SEMenuKeys(config, self.key_event)
@@ -1048,30 +1049,40 @@ class E3v3seDisplay:
 
     def HMI_ManualProbe(self):
         encoder_state = self.get_encoder_state()
-        self.log("HMI_ManualProbe: %s" % encoder_state)
         if encoder_state == self.ENCODER_DIFF_NO or self.manual_probe == None:
             return
 
         step = self.MANUAL_PROBE_STEPS[self.manual_probe_step_index]
         current_pos = self.manual_probe.status["z_position"]
+        min_z = self.stepper_z.getfloat("position_min", self.pd.Z_MIN_POS, note_valid=False)
+        max_z = self.stepper_z.getfloat("position_max", self.pd.Z_MAX_POS, note_valid=False)
+        update = False
+        error = False
+        
         if encoder_state == self.ENCODER_DIFF_CW:
-            if current_pos - step <= self.pd.Z_MIN_POS:
-                self.error(f"Ignoring move '{current_pos - step}' as it is outside Z limits!")
+            if math.floor(current_pos - step) <= min_z:
+                self.error(f"Ignoring move '{current_pos - step}' as it is lower than Z limit '{min_z}'!")
+                error = True
             else:
-                self.gcode.run_script_from_command("TESTZ Z=-%f" % step)
+                self.gcode.run_script_from_command(f"TESTZ Z=-{step}")
+            update = True
         elif encoder_state == self.ENCODER_DIFF_CCW:
             step = self.MANUAL_PROBE_STEPS[self.manual_probe_step_index]
-            if current_pos + step >= self.pd.Z_MAX_POS:
-                self.error(f"Ignoring move '{current_pos + step}' as it is outside Z limits!")
+            if math.ceil(current_pos + step) >= max_z:
+                self.error(f"Ignoring move '{current_pos + step}' as it is greater than Z limit '{max_z}'!")
+                error = True
             else:
-                self.gcode.run_script_from_command("TESTZ Z=%f" % step)
+                self.gcode.run_script_from_command(f"TESTZ Z={step}")
+            update = True
         elif encoder_state == self.ENCODER_DIFF_ENTER:
             self.manual_probe_step_index = (self.manual_probe_step_index + 1) % len(self.MANUAL_PROBE_STEPS)
+            update = True
         elif encoder_state == self.ENCODER_DIFF_LONG_ENTER:
             self.gcode.run_script_from_command("ACCEPT")
+            self.Goto_MainMenu()
 
-        self.Clear_Screen()
-        self.Draw_Manual_Probe_Menu()
+        if update:
+            self.Draw_Manual_Probe_Menu(draw_static_elements=False, draw_error=error)
 
     # Pause and Stop window */
     def HMI_PauseOrStop(self):
@@ -3212,27 +3223,27 @@ class E3v3seDisplay:
             self.pd.current_position.e * self.MINUNITMULT,
         )
 
-    def Draw_Manual_Probe_Menu(self):
+    def Draw_Manual_Probe_Menu(self, draw_static_elements=False, draw_error=False):
         if self.manual_probe == None or self.manual_probe.status["is_active"] == False:
             self.Goto_MainMenu()
             return
 
-        try:
-            self.log("Goto_ManualProbe_Menu!")
+        PADDING = 15
+        WINDOW_X = PADDING
+        WINDOW_Y = self.HEADER_HEIGHT + PADDING
+        WINDOW_WIDTH = self.lcd.screen_width - PADDING * 2
+        line_height = self.MLINE - 10
 
-            PADDING = 15
-            WINDOW_X = PADDING
-            WINDOW_Y = self.HEADER_HEIGHT + PADDING
-            WINDOW_WIDTH = self.lcd.screen_width - PADDING * 2
-
+        if draw_static_elements:
+            # Draw header
             self.lcd.draw_icon(
                 False,
                 self.selected_language,
                 self.icon_TEXT_header_leveling,
                 self.HEADER_HEIGHT,
-                1,
+                1
             )
-
+    
             self.lcd.draw_string(
                 False,
                 self.lcd.font_8x8,
@@ -3240,82 +3251,120 @@ class E3v3seDisplay:
                 self.color_background_black,
                 WINDOW_X,
                 WINDOW_Y,
-                "Step sizes:",
+                "Step sizes:"
             )
-
-            step_count = len(self.MANUAL_PROBE_STEPS)
-            box_margin = 5
-            box_width = (WINDOW_WIDTH - (step_count - 1) * box_margin) / step_count
-            line_count = 0
-            for i in range(step_count):
-                color = self.color_yellow if i == self.manual_probe_step_index else self.color_white
-
-                box_x = WINDOW_X + i * (box_width + box_margin)
-                box_y = WINDOW_Y + self.MBASE(line_count) - 10
-                box_bottom = WINDOW_Y + self.MBASE(line_count + 1) - 10
-                box_height = box_bottom - box_y
-                self.lcd.draw_rectangle(
-                    0,
-                    self.color_popup_background,
-                    box_x,
-                    box_y,
-                    box_x + box_width,
-                    box_bottom
-                )
-
-                text = "%.1f" % self.MANUAL_PROBE_STEPS[i]
-                text_width = len(text) * self.MENU_CHR_W
-                text_height = self.MENU_CHR_W
-                text_x = box_x + (box_width - text_width) / 2
-                text_y = box_y + (box_height - text_height) / 2
-                self.lcd.draw_string(
-                    True,
-                    self.lcd.font_8x8,
-                    color,
-                    self.color_background_black,
-                    text_x,
-                    text_y,
-                    text
-                )
-
-            line_count += 2
-            self.lcd.draw_float_value(
-                True,
-                True,
-                0,
-                self.lcd.font_8x16,
-                self.color_yellow,
-                self.color_background_black,
-                4,
-                1,
-                WINDOW_WIDTH / 2 - (4 * self.STAT_CHR_W) / 2,
-                WINDOW_Y + self.MBASE(line_count) - 10,
-                self.manual_probe.status["z_position"]
-            )
-
-            line_count += 2
-            self.lcd.draw_string(
+            
+            # Draw footer
+            self.lcd.draw_string_centered(
                 False,
                 self.lcd.font_8x8,
                 self.color_white,
                 self.color_background_black,
-                WINDOW_X,
-                WINDOW_Y + self.MBASE(line_count) - 10,
+                self.MENU_CHR_W,
+                line_height,
+                self.lcd.screen_width / 2.0,
+                self.lcd.screen_height - line_height * 2.0,
                 "Tap to toggle between steps"
             )
-            line_count += 1
-            self.lcd.draw_string(
+            
+            self.lcd.draw_string_centered(
                 False,
                 self.lcd.font_8x8,
                 self.color_white,
                 self.color_background_black,
-                WINDOW_X,
-                WINDOW_Y + self.MBASE(line_count) - 10,
+                self.MENU_CHR_W,
+                line_height,
+                self.lcd.screen_width / 2.0,
+                self.lcd.screen_height - line_height,
                 "Long press to confirm"
             )
-        except Exception as e:
-            print(e)
-            self.log(e)
+            
+        # Draw the individual steps in the selector
+        step_count = len(self.MANUAL_PROBE_STEPS)
+        box_margin = 5
+        box_width = (WINDOW_WIDTH - (step_count - 1) * box_margin) / step_count
+        line_count = 0
+        for i in range(step_count):
+            box_x = WINDOW_X + i * (box_width + box_margin)
+            box_y = WINDOW_Y + self.MBASE(line_count) - 10
+            box_bottom = WINDOW_Y + self.MBASE(line_count + 1) - 10
+            box_height = box_bottom - box_y
+            self.lcd.draw_rectangle(
+                0,
+                self.color_yellow if i == self.manual_probe_step_index else self.color_popup_background,
+                box_x,
+                box_y,
+                box_x + box_width,
+                box_bottom
+            )
+            
+            if self.MANUAL_PROBE_STEPS[i] >= 0.1:
+                # Acount for both 1.0 and 0.1 steps
+                text = "%.1f" % self.MANUAL_PROBE_STEPS[i]
+            else:
+                # Account for 0.05 step
+                text = "%.2f" % self.MANUAL_PROBE_STEPS[i]
+            
+            self.lcd.draw_string_centered(
+                True,
+                self.lcd.font_8x8,
+                self.color_yellow if i == self.manual_probe_step_index else self.color_white,
+                self.color_background_black,
+                self.MENU_CHR_W,
+                self.MENU_CHR_W,
+                box_x + box_width / 2.0,
+                box_y + box_height / 2.0,
+                text
+            )
+        
+        # Draw the current offset
+        line_count += 2
+        if not draw_static_elements:
+            # No need to clear the region, as the caller will clear the whole screen
+            self.lcd.draw_rectangle(
+                1,
+                self.color_background_black,
+                WINDOW_X,
+                WINDOW_Y + self.MBASE(line_count) - 10,
+                WINDOW_X + WINDOW_WIDTH,
+                WINDOW_Y + self.MBASE(line_count + 1) - 10
+            )
+        self.lcd.draw_float_value(
+            True,
+            True,
+            0,
+            self.lcd.font_8x16,
+            self.color_background_red if draw_error else self.color_yellow,
+            self.color_background_black,
+            4,
+            1,
+            WINDOW_WIDTH / 2 - (4 * self.STAT_CHR_W) / 2,
+            WINDOW_Y + self.MBASE(line_count) - 10,
+            self.manual_probe.status["z_position"]
+        )
+
+        # Draw the error message
+        line_count += 1
+        self.lcd.draw_rectangle(
+            1,
+            self.color_background_black,
+            WINDOW_X,
+            WINDOW_Y + self.MBASE(line_count) - 10,
+            WINDOW_X + WINDOW_WIDTH,
+            WINDOW_Y + self.MBASE(line_count + 1) - 10
+        )
+        if draw_error:
+            self.lcd.draw_string_centered(
+                True,
+                self.lcd.font_8x8,
+                self.color_background_red,
+                self.color_background_black,
+                self.MENU_CHR_W,
+                line_height,
+                self.lcd.screen_width / 2,
+                WINDOW_Y + self.MBASE(line_count) - 10,
+                "Out of range!"
+            )
 
     def Goto_MainMenu(self):
         self.checkkey = self.MainMenu
@@ -3371,7 +3420,7 @@ class E3v3seDisplay:
     def Goto_ManualProbe_Menu(self):
         self.checkkey = self.ManualProbeProcess
         self.Clear_Screen()
-        self.Draw_Manual_Probe_Menu()
+        self.Draw_Manual_Probe_Menu(draw_static_elements=True)
 
     # --------------------------------------------------------------#
     # --------------------------------------------------------------#
@@ -3833,6 +3882,9 @@ class E3v3seDisplay:
         if self.is_manual_probe_active():
             if self.checkkey != self.ManualProbeProcess:
                 self.Goto_ManualProbe_Menu()
+                
+            # Ensure the status area won't redraw
+            update = False
         elif self.checkkey == self.ManualProbeProcess:
             self.Goto_MainMenu()
 
