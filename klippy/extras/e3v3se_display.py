@@ -49,11 +49,11 @@ class select_t:
             self.now += 1
         else:
             self.now = v - 1
-        return self.changed()  
+        return self.changed()
 
 class E3V3SEMenuKeys(MenuKeys):
     """
-    E3V3SEMenuKeys is a subclass of MenuKeys designed to 
+    E3V3SEMenuKeys is a subclass of MenuKeys designed to
     customize initialization without modifying the original MenuKeys class.
 
     This class defaults the pins for the menu keys to the corresponding
@@ -107,7 +107,7 @@ class E3V3SEMenuKeys(MenuKeys):
 
 class E3V3SEPrinterSerialBridge(PrinterSerialBridge):
     """
-    E3V3SEPrinterSerialBridge is a subclass of PrinterSerialBridge designed to 
+    E3V3SEPrinterSerialBridge is a subclass of PrinterSerialBridge designed to
     customize initialization without modifying the original PrinterSerialBridge class.
 
     This class defaults the serial pins, baud, eol and serial bridge config to specific
@@ -142,11 +142,12 @@ class E3V3SEPrinterSerialBridge(PrinterSerialBridge):
 
 
 class E3v3seDisplay:
-    
+
     ENCODER_DIFF_NO = 0  # no state
     ENCODER_DIFF_CW = 1  # clockwise rotation
     ENCODER_DIFF_CCW = 2  # counterclockwise rotation
     ENCODER_DIFF_ENTER = 3  # click
+    ENCODER_DIFF_LONG_ENTER = 4  # long click
 
     TROWS = 6
     MROWS = TROWS - 1  # Total rows, and other-than-Back
@@ -156,6 +157,8 @@ class E3v3seDisplay:
     LBLX = 45  # Menu item label X
     MENU_CHR_W = 8
     STAT_CHR_W = 10
+
+    MANUAL_PROBE_STEPS = [1.0, 0.5, 0.1]
 
     dwin_abort_flag = False  # Flag to reset feedrate, return to Home
 
@@ -209,6 +212,7 @@ class E3v3seDisplay:
     Step = 19
     Step_value = 20
     FeatureNotAvailable = 21
+    ManualProbeProcess = 22
 
     # Last Process ID
     Last_Prepare = 21
@@ -246,18 +250,18 @@ class E3v3seDisplay:
     ICON = 0
     GIF_ICON = 27
     languages = {
-            "chinese": 2,
-            "english": 4,
-            "german": 6,
-            "russian": 9,
-            "french": 12,
-            "turkish": 15, 
-            "spanish": 17,
-            "italian": 19,
-            "portuguese": 21,
-            "japanese": 23, 
-            "korean": 25
-        }
+        "chinese": 2,
+        "english": 4,
+        "german": 6,
+        "russian": 9,
+        "french": 12,
+        "turkish": 15,
+        "spanish": 17,
+        "italian": 19,
+        "portuguese": 21,
+        "japanese": 23,
+        "korean": 25
+    }
 
     # ICON ID
     icon_logo = 0
@@ -530,20 +534,18 @@ class E3v3seDisplay:
         language = config.get("language", "english")
         self.selected_language = self.languages[language]
 
+        self.manual_probe = None
+        self.manual_probe_step_index = 0
+
 
         # register for key events
         E3V3SEMenuKeys(config, self.key_event)
 
         self.serial_bridge = E3V3SEPrinterSerialBridge(self.config)
-   
-       
-        #bridge = config.get('serial_bridge')
 
-        #self.serial_bridge = self.printer.lookup_object(
-        #    'serial_bridge %s' %(bridge))
         self.serial_bridge.register_callback(
             self._handle_serial_bridge_response)
-        
+
         self.lcd = TJC3224_LCD(self.serial_bridge)
         self.checkkey = self.MainMenu
         self.pd = PrinterData(config)
@@ -551,13 +553,11 @@ class E3v3seDisplay:
         self._update_interval = 1
         self._update_timer = self.reactor.register_timer(self.EachMomentUpdate)
 
-
-
     def key_event(self, key, eventtime):
         if key == 'click':
             self.encoder_state = self.ENCODER_DIFF_ENTER
         elif key == 'long_click':
-            self.encoder_state = self.ENCODER_DIFF_ENTER
+            self.encoder_state = self.ENCODER_DIFF_LONG_ENTER
         elif key == 'up':
             self.encoder_state = self.ENCODER_DIFF_CCW
         elif key == 'down':
@@ -567,12 +567,12 @@ class E3v3seDisplay:
     def get_encoder_state(self):
         last_state = self.encoder_state
         self.encoder_state = self.ENCODER_DIFF_NO
-        return  last_state
-    
+        return last_state
+
     def _handle_serial_bridge_response(self, data):
         byte_debug = ' '.join(['0x{:02x}'.format(byte) for byte in data])
         self.log("Received message: " + byte_debug)
-    
+
     def send_text(self, text):
         self.serial_bridge.send_text(text)
 
@@ -589,14 +589,23 @@ class E3v3seDisplay:
         self.pd.handle_ready()
         self.reactor.register_timer(
             self._reset_screen, self.reactor.monotonic())
-         
+
     def _reset_screen(self, eventtime):
         self.log("Reset")
         self.reactor.register_timer(
             self._screen_init, self.reactor.monotonic() + 2.)
         return self.reactor.NEVER
 
-    
+    def is_manual_probe_active(self):
+        try:
+            self.manual_probe = self.printer.lookup_object("manual_probe")
+            if self.manual_probe is not None:
+                return self.manual_probe.status["is_active"]
+        except:
+            pass
+
+        return False
+
     def lcdExit(self):
         logging.info("Shutting down the LCD")
         self.lcd.set_backlight_brightness(0)
@@ -742,7 +751,7 @@ class E3v3seDisplay:
 
                     self.select_print.reset()
                     self.select_file.reset()
-                    
+
                     self.Goto_PrintProcess()
                 else:
                     self.Redraw_SD_List()
@@ -1036,6 +1045,33 @@ class E3v3seDisplay:
                 self.pd.HMI_flag.select_flag = True
                 self.checkkey = self.Print_window
                 self.Popup_window_PauseOrStop()
+
+    def HMI_ManualProbe(self):
+        encoder_state = self.get_encoder_state()
+        self.log("HMI_ManualProbe: %s" % encoder_state)
+        if encoder_state == self.ENCODER_DIFF_NO or self.manual_probe == None:
+            return
+
+        step = self.MANUAL_PROBE_STEPS[self.manual_probe_step_index]
+        current_pos = self.manual_probe.status["z_position"]
+        if encoder_state == self.ENCODER_DIFF_CW:
+            if current_pos - step <= self.pd.Z_MIN_POS:
+                self.error(f"Ignoring move '{current_pos - step}' as it is outside Z limits!")
+            else:
+                self.gcode.run_script_from_command("TESTZ Z=-%f" % step)
+        elif encoder_state == self.ENCODER_DIFF_CCW:
+            step = self.MANUAL_PROBE_STEPS[self.manual_probe_step_index]
+            if current_pos + step >= self.pd.Z_MAX_POS:
+                self.error(f"Ignoring move '{current_pos + step}' as it is outside Z limits!")
+            else:
+                self.gcode.run_script_from_command("TESTZ Z=%f" % step)
+        elif encoder_state == self.ENCODER_DIFF_ENTER:
+            self.manual_probe_step_index = (self.manual_probe_step_index + 1) % len(self.MANUAL_PROBE_STEPS)
+        elif encoder_state == self.ENCODER_DIFF_LONG_ENTER:
+            self.gcode.run_script_from_command("ACCEPT")
+
+        self.Clear_Screen()
+        self.Draw_Manual_Probe_Menu()
 
     # Pause and Stop window */
     def HMI_PauseOrStop(self):
@@ -2240,7 +2276,7 @@ class E3v3seDisplay:
         if self.pd.nozzleIsHeating():
             self.lcd.draw_icon(True, self.GIF_ICON, self.icon_nozzle_heating_0, 6, 262)
         else:
-            self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262) 
+            self.lcd.draw_icon(True, self.ICON, self.icon_hotend_temp, 6, 262)
 
         self.lcd.draw_int_value(
             True,
@@ -3176,6 +3212,112 @@ class E3v3seDisplay:
             self.pd.current_position.e * self.MINUNITMULT,
         )
 
+    def Draw_Manual_Probe_Menu(self):
+        if self.manual_probe == None or self.manual_probe.status["is_active"] == False:
+            self.Goto_MainMenu()
+            return
+
+        try:
+            self.log("Goto_ManualProbe_Menu!")
+
+            PADDING = 15
+            WINDOW_X = PADDING
+            WINDOW_Y = self.HEADER_HEIGHT + PADDING
+            WINDOW_WIDTH = self.lcd.screen_width - PADDING
+            WINDOW_HEIGHT = self.lcd.screen_height - PADDING * 2
+
+            self.lcd.draw_icon(
+                False,
+                self.selected_language,
+                self.icon_TEXT_header_leveling,
+                self.HEADER_HEIGHT,
+                1,
+            )
+
+            self.lcd.draw_string(
+                False,
+                self.lcd.font_8x8,
+                self.color_white,
+                self.color_background_black,
+                WINDOW_X,
+                WINDOW_Y,
+                "Step sizes:",
+            )
+
+            step_count = len(self.MANUAL_PROBE_STEPS)
+            box_margin = 5
+            box_width = (WINDOW_WIDTH - (step_count - 1) * box_margin) / step_count
+            line_count = 0
+            for i in range(step_count):
+                color = self.color_yellow if i == self.manual_probe_step_index else self.color_white
+
+                box_x = WINDOW_X + i * (box_width + box_margin)
+                box_y = WINDOW_Y + self.MBASE(line_count) - 10
+                box_bottom = WINDOW_Y + self.MBASE(line_count + 1) - 10
+                box_height = box_bottom - box_y
+                self.lcd.draw_rectangle(
+                    0,
+                    self.color_popup_background,
+                    box_x,
+                    box_y,
+                    box_x + box_width,
+                    box_bottom
+                )
+
+                text = "%.1f" % self.MANUAL_PROBE_STEPS[i]
+                text_width = len(text) * self.MENU_CHR_W
+                text_height = self.MENU_CHR_W
+                text_x = box_x + (box_width - text_width) / 2
+                text_y = box_y + (box_height - text_height) / 2
+                self.lcd.draw_string(
+                    True,
+                    self.lcd.font_8x8,
+                    color,
+                    self.color_background_black,
+                    text_x,
+                    text_y,
+                    text
+                )
+
+            line_count += 2
+            self.lcd.draw_float_value(
+                True,
+                True,
+                0,
+                self.lcd.font_8x16,
+                self.color_yellow,
+                self.color_background_black,
+                4,
+                1,
+                WINDOW_WIDTH / 2 - (4 * self.STAT_CHR_W) / 2,
+                WINDOW_Y + self.MBASE(line_count) - 10,
+                self.manual_probe.status["z_position"]
+            )
+
+            line_count += 2
+            self.lcd.draw_string(
+                False,
+                self.lcd.font_8x8,
+                self.color_white,
+                self.color_background_black,
+                WINDOW_X,
+                WINDOW_Y + self.MBASE(line_count) - 10,
+                "Tap to toggle between steps"
+            )
+            line_count += 1
+            self.lcd.draw_string(
+                False,
+                self.lcd.font_8x8,
+                self.color_white,
+                self.color_background_black,
+                WINDOW_X,
+                WINDOW_Y + self.MBASE(line_count) - 10,
+                "Long press to confirm"
+            )
+        except Exception as e:
+            print(e)
+            self.log(e)
+
     def Goto_MainMenu(self):
         self.checkkey = self.MainMenu
         self.Clear_Screen()
@@ -3226,6 +3368,12 @@ class E3v3seDisplay:
         self.Draw_Print_ProgressElapsed()
         self.Draw_Print_ProgressRemain()
         self.Draw_Status_Area()
+
+    def Goto_ManualProbe_Menu(self):
+        if self.checkkey != self.ManualProbeProcess and self.manual_probe != None and self.manual_probe.status["is_active"] == True:
+            self.checkkey = self.ManualProbeProcess
+            self.Clear_Screen()
+            self.Draw_Manual_Probe_Menu()
 
     # --------------------------------------------------------------#
     # --------------------------------------------------------------#
@@ -3684,6 +3832,11 @@ class E3v3seDisplay:
             elif self.pd.status in ["operational", "complete", "standby", "cancelled"]:
                 self.Goto_MainMenu()
 
+        if self.is_manual_probe_active():
+            self.Goto_ManualProbe_Menu()
+        elif self.checkkey == self.ManualProbeProcess:
+            self.Goto_MainMenu()
+
         if self.checkkey == self.PrintProcess:
             if self.pd.HMI_flag.print_finish and not self.pd.HMI_flag.done_confirm_flag:
                 self.pd.HMI_flag.print_finish = False
@@ -3797,6 +3950,8 @@ class E3v3seDisplay:
             self.HMI_StepXYZE()
         elif self.checkkey == self.FeatureNotAvailable:
             self.HMI_FeatureNotAvailable()
+        elif self.checkkey == self.ManualProbeProcess:
+            self.HMI_ManualProbe()
 
         self.time_since_movement = 0
 
@@ -3806,7 +3961,6 @@ class E3v3seDisplay:
 
     def error(self, msg, *args, **kwargs):
         logging.error("E3V3SE Display: " + str(msg))
-    
+
 def load_config(config):
     return E3v3seDisplay(config)
-
