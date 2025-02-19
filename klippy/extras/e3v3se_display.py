@@ -3224,7 +3224,6 @@ class E3v3seDisplay:
             WINDOW_X = PADDING
             WINDOW_Y = self.HEADER_HEIGHT + PADDING
             WINDOW_WIDTH = self.lcd.screen_width - PADDING * 2
-            WINDOW_HEIGHT = self.lcd.screen_height - PADDING * 2
 
             self.lcd.draw_icon(
                 False,
