@@ -3223,7 +3223,7 @@ class E3v3seDisplay:
             PADDING = 15
             WINDOW_X = PADDING
             WINDOW_Y = self.HEADER_HEIGHT + PADDING
-            WINDOW_WIDTH = self.lcd.screen_width - PADDING
+            WINDOW_WIDTH = self.lcd.screen_width - PADDING * 2
             WINDOW_HEIGHT = self.lcd.screen_height - PADDING * 2
 
             self.lcd.draw_icon(
@@ -3370,10 +3370,9 @@ class E3v3seDisplay:
         self.Draw_Status_Area()
 
     def Goto_ManualProbe_Menu(self):
-        if self.checkkey != self.ManualProbeProcess and self.manual_probe != None and self.manual_probe.status["is_active"] == True:
-            self.checkkey = self.ManualProbeProcess
-            self.Clear_Screen()
-            self.Draw_Manual_Probe_Menu()
+        self.checkkey = self.ManualProbeProcess
+        self.Clear_Screen()
+        self.Draw_Manual_Probe_Menu()
 
     # --------------------------------------------------------------#
     # --------------------------------------------------------------#
@@ -3833,7 +3832,8 @@ class E3v3seDisplay:
                 self.Goto_MainMenu()
 
         if self.is_manual_probe_active():
-            self.Goto_ManualProbe_Menu()
+            if self.checkkey != self.ManualProbeProcess:
+                self.Goto_ManualProbe_Menu()
         elif self.checkkey == self.ManualProbeProcess:
             self.Goto_MainMenu()
 
