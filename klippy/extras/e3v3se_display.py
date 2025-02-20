@@ -146,9 +146,11 @@ class E3v3seDisplay:
 
     ENCODER_DIFF_NO = 0  # no state
     ENCODER_DIFF_CW = 1  # clockwise rotation
-    ENCODER_DIFF_CCW = 2  # counterclockwise rotation
-    ENCODER_DIFF_ENTER = 3  # click
-    ENCODER_DIFF_LONG_ENTER = 4  # long click
+    ENCODER_DIFF_FAST_CW = 2  # fast clockwise rotation
+    ENCODER_DIFF_CCW = 3  # counterclockwise rotation
+    ENCODER_DIFF_FAST_CCW = 4  # fast counterclockwise rotation
+    ENCODER_DIFF_ENTER = 5  # click
+    ENCODER_DIFF_LONG_ENTER = 6  # long click
 
     TROWS = 6
     MROWS = TROWS - 1  # Total rows, and other-than-Back
@@ -563,12 +565,22 @@ class E3v3seDisplay:
             self.encoder_state = self.ENCODER_DIFF_CCW
         elif key == 'down':
             self.encoder_state = self.ENCODER_DIFF_CW
-        self.encoder_has_data()
+        elif key == 'fast_up':
+            self.encoder_state = self.ENCODER_DIFF_FAST_CCW
+        elif key == 'fast_down':
+            self.encoder_state = self.ENCODER_DIFF_FAST_CW
 
+        self.encoder_has_data()
+        
     def get_encoder_state(self):
         last_state = self.encoder_state
         self.encoder_state = self.ENCODER_DIFF_NO
         return last_state
+
+    def get_encoder_multiplier(self, event_time):
+        fast_interval = 0.150 # 150ms
+        elapsed = event_time - self.last_key_event_time
+        return 10 if fast_interval >= elapsed > 0 else 1
 
     def _handle_serial_bridge_response(self, data):
         byte_debug = ' '.join(['0x{:02x}'.format(byte) for byte in data])
@@ -629,7 +641,7 @@ class E3v3seDisplay:
         encoder_state = self.get_encoder_state()
         if encoder_state == self.ENCODER_DIFF_NO:
             return
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_page.inc(4):
                 if self.select_page.now == 0:
                     self.icon_Print()
@@ -645,7 +657,7 @@ class E3v3seDisplay:
                         self.icon_Leveling(True)
                     else:
                         self.icon_StartInfo(True)
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_page.dec():
                 if self.select_page.now == 0:
                     self.icon_Print()
@@ -697,7 +709,7 @@ class E3v3seDisplay:
 
         fullCnt = len(self.pd.GetFiles())
 
-        if encoder_state == self.ENCODER_DIFF_CW and fullCnt:
+        if (encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW) and fullCnt:
             if self.select_file.inc(1 + fullCnt):
                 itemnum = self.select_file.now - 1  # -1 for "Back"
                 if (
@@ -713,7 +725,7 @@ class E3v3seDisplay:
                     self.Move_Highlight(
                         1, self.select_file.now + self.MROWS - self.index_file
                     )  # Just move highlight
-        elif encoder_state == self.ENCODER_DIFF_CCW and fullCnt:
+        elif (encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW) and fullCnt:
             if self.select_file.dec():
                 itemnum = self.select_file.now - 1  # -1 for "Back"
                 if (
@@ -766,7 +778,7 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_NO:
             return
 
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_prepare.inc(1 + self.PREPARE_CASE_TOTAL):
                 if (
                     self.select_prepare.now > self.MROWS
@@ -794,8 +806,7 @@ class E3v3seDisplay:
                     self.Move_Highlight(
                         1, self.select_prepare.now + self.MROWS - self.index_prepare
                     )
-
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_prepare.dec():
                 if self.select_prepare.now < self.index_prepare - self.MROWS:
                     self.index_prepare -= 1
@@ -882,7 +893,7 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_NO:
             return
 
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_control.inc(1 + self.CONTROL_CASE_TOTAL):
                 if (
                     self.select_control.now > self.MROWS
@@ -916,7 +927,7 @@ class E3v3seDisplay:
                     self.Move_Highlight(
                         1, self.select_control.now + self.MROWS - self.index_control
                     )
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_control.dec():
                 if self.select_control.now < self.index_control - self.MROWS:
                     self.index_control -= 1
@@ -995,7 +1006,7 @@ class E3v3seDisplay:
                 self.dwin_abort_flag = True  # Reset feedrate, return to Home
             return
 
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_print.inc(3):
                 if self.select_print.now == 0:
                     self.show_tune()
@@ -1011,7 +1022,7 @@ class E3v3seDisplay:
                     else:
                         self.show_pause()
                     self.show_stop()
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_print.dec():
                 if self.select_print.now == 0:
                     self.show_tune()
@@ -1059,14 +1070,14 @@ class E3v3seDisplay:
         update = False
         error = False
         
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if math.floor(current_pos - step) <= min_z:
                 self.error(f"Ignoring move '{current_pos - step}' as it is lower than Z limit '{min_z}'!")
                 error = True
             else:
                 self.gcode.run_script_from_command(f"TESTZ Z=-{step}")
             update = True
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             step = self.MANUAL_PROBE_STEPS[self.manual_probe_step_index]
             if math.ceil(current_pos + step) >= max_z:
                 self.error(f"Ignoring move '{current_pos + step}' as it is greater than Z limit '{max_z}'!")
@@ -1089,11 +1100,11 @@ class E3v3seDisplay:
         encoder_state = self.get_encoder_state()
         if encoder_state == self.ENCODER_DIFF_NO:
             return
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             self.select_cancel.set(1)
             self.select_confirm.reset()
             self.Draw_Confirm_Cancel_Buttons()
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             self.select_confirm.set(1)
             self.select_cancel.reset()
             self.Draw_Confirm_Cancel_Buttons()
@@ -1117,7 +1128,7 @@ class E3v3seDisplay:
         encoder_state = self.get_encoder_state()
         if encoder_state == self.ENCODER_DIFF_NO:
             return
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_tune.inc(1 + self.TUNE_CASE_TOTAL):
                 if (
                     self.select_tune.now > self.MROWS
@@ -1129,7 +1140,7 @@ class E3v3seDisplay:
                     self.Move_Highlight(
                         1, self.select_tune.now + self.MROWS - self.index_tune
                     )
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_tune.dec():
                 if self.select_tune.now < self.index_tune - self.MROWS:
                     self.index_tune -= 1
@@ -1181,9 +1192,12 @@ class E3v3seDisplay:
 
         if encoder_state == self.ENCODER_DIFF_CW:
             self.pd.HMI_ValueStruct.print_speed += 1
-
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.print_speed -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.print_speed += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.print_speed -= 10
 
         elif encoder_state == self.ENCODER_DIFF_ENTER:
             self.checkkey = self.Tune
@@ -1227,10 +1241,10 @@ class E3v3seDisplay:
                 return
 
         # Avoid flicker by updating only the previous menu
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_axis.inc(1 + 4):
                 self.Move_Highlight(1, self.select_axis.now)
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_axis.dec():
                 self.Move_Highlight(-1, self.select_axis.now)
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1329,6 +1343,7 @@ class E3v3seDisplay:
         Handles the X axis move logic based on the encoder input.
         """
         encoder_state = self.get_encoder_state()
+        
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1355,6 +1370,10 @@ class E3v3seDisplay:
             self.pd.HMI_ValueStruct.Move_X_scale += 1
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.Move_X_scale -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.Move_X_scale += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.Move_X_scale -= 10
 
         if (
             self.pd.HMI_ValueStruct.Move_X_scale
@@ -1392,6 +1411,7 @@ class E3v3seDisplay:
         Handles the Y axis move logic based on the encoder input.
         """
         encoder_state = self.get_encoder_state()
+        
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1418,6 +1438,10 @@ class E3v3seDisplay:
             self.pd.HMI_ValueStruct.Move_Y_scale += 1
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.Move_Y_scale -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.Move_Y_scale += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.Move_Y_scale -= 10
 
         if (
             self.pd.HMI_ValueStruct.Move_Y_scale
@@ -1455,6 +1479,7 @@ class E3v3seDisplay:
         Handles the Z axis move logic based on the encoder input.
         """
         encoder_state = self.get_encoder_state()
+            
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1480,6 +1505,10 @@ class E3v3seDisplay:
             self.pd.HMI_ValueStruct.Move_Z_scale += 1
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.Move_Z_scale -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.Move_Z_scale += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.Move_Z_scale -= 10
 
         if (
             self.pd.HMI_ValueStruct.Move_Z_scale
@@ -1518,6 +1547,7 @@ class E3v3seDisplay:
         """
         self.pd.last_E_scale = 0
         encoder_state = self.get_encoder_state()
+        
         if encoder_state == self.ENCODER_DIFF_NO:
             return
 
@@ -1537,11 +1567,14 @@ class E3v3seDisplay:
                 self.pd.HMI_ValueStruct.Move_E_scale,
             )
             self.pd.moveAbsolute("E", self.pd.current_position.e, 300)
-
         elif encoder_state == self.ENCODER_DIFF_CW:
             self.pd.HMI_ValueStruct.Move_E_scale += 1
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.Move_E_scale -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.Move_E_scale += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.Move_E_scale -= 10
 
         if (self.pd.HMI_ValueStruct.Move_E_scale - self.pd.last_E_scale) > (
             self.pd.EXTRUDE_MAXLENGTH
@@ -1573,10 +1606,10 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_NO:
             return
 
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_temp.inc(1 + self.TEMP_CASE_TOTAL):
                 self.Move_Highlight(1, self.select_temp.now)
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_temp.dec():
                 self.Move_Highlight(-1, self.select_temp.now)
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1783,10 +1816,10 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         # Avoid flicker by updating only the previous menu
-        elif encoder_state == self.ENCODER_DIFF_CW:
+        elif encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_PLA.inc(1 + self.PREHEAT_CASE_TOTAL):
                 self.Move_Highlight(1, self.select_PLA.now)
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_PLA.dec():
                 self.Move_Highlight(-1, self.select_PLA.now)
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1854,10 +1887,10 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         # Avoid flicker by updating only the previous menu
-        elif encoder_state == self.ENCODER_DIFF_CW:
+        elif encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_TPU.inc(1 + self.PREHEAT_CASE_TOTAL):
                 self.Move_Highlight(1, self.select_TPU.now)
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_TPU.dec():
                 self.Move_Highlight(-1, self.select_TPU.now)
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -2000,12 +2033,14 @@ class E3v3seDisplay:
                 )
                 self.pd.setTargetHotend(self.pd.HMI_ValueStruct.E_Temp, 0)
             return
-
         elif encoder_state == self.ENCODER_DIFF_CW:
             self.pd.HMI_ValueStruct.E_Temp += 1
-
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.E_Temp -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.E_Temp += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.E_Temp -= 10
 
         # E_Temp limit
         if self.pd.HMI_ValueStruct.E_Temp > self.pd.MAX_E_TEMP:
@@ -2104,12 +2139,14 @@ class E3v3seDisplay:
                 )
                 self.pd.setTargetHotend(self.pd.HMI_ValueStruct.Bed_Temp, 0)
             return
-
         elif encoder_state == self.ENCODER_DIFF_CW:
             self.pd.HMI_ValueStruct.Bed_Temp += 1
-
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.Bed_Temp -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.Bed_Temp += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.Bed_Temp -= 10
 
         # Bed_Temp limit
         if self.pd.HMI_ValueStruct.Bed_Temp > self.pd.BED_MAX_TARGET:
@@ -2136,10 +2173,10 @@ class E3v3seDisplay:
         encoder_state = self.get_encoder_state()
         if encoder_state == self.ENCODER_DIFF_NO:
             return
-        if encoder_state == self.ENCODER_DIFF_CW:
+        if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if self.select_motion.inc(1 + self.MOTION_CASE_TOTAL):
                 self.Move_Highlight(1, self.select_motion.now)
-        elif encoder_state == self.ENCODER_DIFF_CCW:
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
             if self.select_motion.dec():
                 self.Move_Highlight(-1, self.select_motion.now)
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -2167,9 +2204,7 @@ class E3v3seDisplay:
         else:
             zoff_line = self.TUNE_CASE_ZOFF + self.MROWS - self.index_tune
 
-        if (
-            encoder_state == self.ENCODER_DIFF_ENTER
-        ):  # if (applyencoder(encoder_diffstate, offset_value))
+        if encoder_state == self.ENCODER_DIFF_ENTER:
             self.EncoderRateLimit = True
             if self.pd.HAS_BED_PROBE:
                 self.pd.offset_z(self.dwin_zoffset)
@@ -2192,11 +2227,14 @@ class E3v3seDisplay:
             )
 
             return
-
         elif encoder_state == self.ENCODER_DIFF_CW:
             self.pd.HMI_ValueStruct.offset_value += 1
         elif encoder_state == self.ENCODER_DIFF_CCW:
             self.pd.HMI_ValueStruct.offset_value -= 1
+        elif encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.pd.HMI_ValueStruct.offset_value += 10
+        elif encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.pd.HMI_ValueStruct.offset_value -= 10
 
         if (
             self.pd.HMI_ValueStruct.offset_value
