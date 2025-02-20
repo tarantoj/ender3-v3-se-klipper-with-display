@@ -142,6 +142,31 @@ class E3V3SEPrinterSerialBridge(PrinterSerialBridge):
         self.serial_bridge.setup_bridge(self)
 
 
+class E3v3seDisplayMacro:
+    def __init__(self, config):
+        self.config = config
+        printer = self.config.get_printer()
+        parent = printer.lookup_object("e3v3se_display")
+        id = config.get_name().split()[1]
+        
+        if not id.startswith("MACRO"):
+            parent.error("Invalid section '%s'" % id)
+            raise Exception("Invalid section '%s'" % id)
+        
+        gcode = config.get("gcode")
+        label = config.get("label")
+        icon = config.getint("icon", 14) # Defaults to icon_file
+
+        parent.log("E3V3SE Display MACRO: id: '%s' label: '%s' icon: '%i' gcode: '%s'" % (id, label, icon, gcode))
+        
+        parent.custom_macros.append({
+            "id": id,
+            "icon": icon,
+            "label": label,
+            "gcode": gcode
+        })
+        
+
 class E3v3seDisplay:
 
     ENCODER_DIFF_NO = 0  # no state
@@ -180,11 +205,12 @@ class E3v3seDisplay:
     select_TPU = select_t()
     select_confirm = select_t()
     select_cancel = select_t()
+    select_misc = select_t()
 
     index_file = MROWS
     index_prepare = MROWS
     index_control = MROWS
-    index_leveling = MROWS
+    index_misc = MROWS
     index_tune = MROWS
 
     is_dimmed = False
@@ -195,7 +221,7 @@ class E3v3seDisplay:
     SelectFile = 1
     Prepare = 2
     Control = 3
-    Leveling = 4
+    Misc = 4
     PrintProcess = 5
     AxisMove = 6
     TemperatureID = 7
@@ -535,9 +561,13 @@ class E3v3seDisplay:
         language = config.get("language", "english")
         self.selected_language = self.languages[language]
 
+        # Manual probe feature
         self.manual_probe = None
         self.manual_probe_step_index = 0
         self.stepper_z = config.getsection("stepper_z")
+        
+        # Custom macro feature
+        self.custom_macros = []
 
         # register for key events
         E3V3SEMenuKeys(config, self.key_event)
@@ -642,7 +672,7 @@ class E3v3seDisplay:
                 if self.select_page.now == 3:
                     self.icon_Control()
                     if self.pd.HAS_ONESTEP_LEVELING:
-                        self.icon_Leveling(True)
+                        self.icon_Misc(True)
                     else:
                         self.icon_StartInfo(True)
         elif encoder_state == self.ENCODER_DIFF_CCW:
@@ -656,12 +686,12 @@ class E3v3seDisplay:
                 elif self.select_page.now == 2:
                     self.icon_Control()
                     if self.pd.HAS_ONESTEP_LEVELING:
-                        self.icon_Leveling(False)
+                        self.icon_Misc(False)
                     else:
                         self.icon_StartInfo(False)
                 elif self.select_page.now == 3:
                     if self.pd.HAS_ONESTEP_LEVELING:
-                        self.icon_Leveling(True)
+                        self.icon_Misc(True)
                     else:
                         self.icon_StartInfo(True)
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -680,12 +710,9 @@ class E3v3seDisplay:
                 self.Draw_Control_Menu()
             if self.select_page.now == 3:  # Leveling or Info
                 if self.pd.HAS_ONESTEP_LEVELING:
-                    # The leveling menu is not implemented yet, therefore it popups
-                    # a "feature not available" window
-                    self.popup_caller = self.MainMenu
-                    self.checkkey = self.FeatureNotAvailable
-                    self.Draw_FeatureNotAvailable_Popup()
-
+                    self.checkkey = self.Misc
+                    self.Clear_Screen()
+                    self.Draw_Misc_Menu()
                 else:
                     self.checkkey = self.Info
                     self.Draw_Info_Menu()
@@ -756,6 +783,51 @@ class E3v3seDisplay:
                     self.Goto_PrintProcess()
                 else:
                     self.Redraw_SD_List()
+                    
+    def HMI_Misc(self):
+        encoder_state = self.get_encoder_state()
+        if encoder_state == self.ENCODER_DIFF_NO:
+            return
+
+        custom_macro_count = len(self.custom_macros)
+        
+        if encoder_state == self.ENCODER_DIFF_CW and custom_macro_count:
+            if self.select_misc.inc(1 + custom_macro_count):
+                index = self.select_misc.now - 1 # -1 for "Back"
+                if self.select_misc.now > self.MROWS and self.select_misc.now > self.index_misc:
+                    # Cursor past the last item, scroll up
+                    self.index_misc = self.select_misc.now
+                    self.Scroll_Menu(self.scroll_up)
+                    self.Draw_CustomMacroItem(index, self.MROWS)
+                else:
+                    self.Move_Highlight(1, self.select_misc.now + self.MROWS - self.index_misc)# Move highlight
+        elif encoder_state == self.ENCODER_DIFF_CCW and custom_macro_count:
+            if self.select_misc.dec():
+                index = self.select_misc.now - 1 # -1 for "Back"
+                if self.select_misc.now < self.index_misc - self.MROWS:
+                    # Cursor past the first item, scroll down
+                    self.index_misc -= 1
+                    self.Scroll_Menu(self.scroll_down)
+                    if self.index_misc == self.MROWS:
+                        self.Draw_Back_First()
+                    else:
+                        self.Draw_CustomMacroItem(index, self.MROWS)
+                else:
+                    self.Move_Highlight(-1, self.select_misc.now + self.MROWS - self.index_misc)# Move highlight
+        elif encoder_state == self.ENCODER_DIFF_ENTER:
+            if self.select_misc.now == 0: # Back
+                self.select_misc.set(0)
+                self.Goto_MainMenu()
+            else:
+                macro = self.custom_macros[self.select_misc.now - 1]
+                self.log("Running custom macro '%s'" % macro["id"])
+                
+                try:
+                    self.gcode.run_script_from_command(macro["gcode"])
+                except self.gcode.CommandError as e:
+                    self.error("Error running custom macro '%s': %s" % (macro["id"], e))
+                    self.gcode.respond_info("Error running custom macro '%s': %s" % (macro["id"], e))
+                
 
     def HMI_Prepare(self):
         """
@@ -2587,6 +2659,11 @@ class E3v3seDisplay:
         else:
             self.Draw_Menu_Line(row, self.icon_file, fl)
 
+    # Display a custom macro item
+    def Draw_CustomMacroItem(self, item, row=0):
+        macro = self.custom_macros[item]
+        self.Draw_Menu_Line(row, macro["icon"], macro["label"])
+
     def Draw_Confirm_Cancel_Buttons(self):
         if self.select_confirm.now == 1:
             c1 = self.color_white
@@ -2797,8 +2874,49 @@ class E3v3seDisplay:
         self.Draw_More_Icon(3)
         self.Draw_Status_Area()
 
-    def Draw_Leveling_Menu(self):
-        self.Clear_Main_Window()
+    def Draw_Misc_Menu(self):
+        # Draw "Miscellaneous" on header
+        self.lcd.draw_string_centered(
+            False,
+            self.lcd.font_8x8,
+            self.color_white,
+            self.color_background_black,
+            self.MENU_CHR_W,
+            self.MENU_CHR_W,
+            self.lcd.screen_width / 2,
+            self.HEADER_HEIGHT / 2,
+            "Miscellaneous"
+        )
+        
+        self.select_misc.reset()
+        self.index_misc = self.MROWS
+        self.Clear_Menu_Area() # Leave title bar unchanged, clear only middle of screen
+        self.Draw_Back_First()
+        
+        custom_macro_count = len(self.custom_macros)
+        if custom_macro_count > 0:
+            if custom_macro_count > self.MROWS:
+                custom_macro_count = self.MROWS
+            for i in range(custom_macro_count):
+                self.Draw_CustomMacroItem(i, i + 1)
+        else:
+            self.lcd.draw_rectangle(
+                1,
+                self.color_background_red,
+                11,
+                25,
+                self.MBASE(3) - 10,
+                self.lcd.screen_width - 10
+            )
+            self.lcd.draw_string(
+                False,
+                self.lcd.font_16x32,
+                self.color_yellow,
+                self.color_background_red,
+                (self.lcd.screen_width - 9 * 16) / 2,
+                self.MBASE(3),
+                "No Macros"
+            )
 
     def Draw_Info_Menu(self):
         """
@@ -3378,7 +3496,7 @@ class E3v3seDisplay:
         self.icon_Prepare()
         self.icon_Control()
         if self.pd.HAS_ONESTEP_LEVELING:
-            self.icon_Leveling(self.select_page.now == 3)
+            self.icon_Misc(self.select_page.now == 3)
         else:
             self.icon_StartInfo(self.select_page.now == 3)
 
@@ -3727,20 +3845,34 @@ class E3v3seDisplay:
             )
             # self.lcd.move_screen_area(1, 85, 423, 132, 434, 48, 318)
 
-    def icon_Leveling(self, show):
+    def icon_Misc(self, show):
         if show:
             self.lcd.draw_icon(True, self.ICON, self.icon_leveling_selected, 126, 178)
-            self.lcd.draw_icon(
-                True, self.selected_language, self.icon_TEXT_Leveling_selected, 126, 247
+            self.lcd.draw_string_centered(
+                False,
+                self.lcd.font_8x8,
+                self.color_white,
+                self.color_background_black,
+                self.MENU_CHR_W,
+                0,
+                175,
+                247,
+                "Misc"
             )
             self.lcd.draw_rectangle(0, self.color_white, 126, 178, 226, 292)
-            # self.lcd.move_screen_area(1, 84, 437, 120, 449, 182, 318)
         else:
             self.lcd.draw_icon(True, self.ICON, self.icon_leveling, 126, 178)
-            self.lcd.draw_icon(
-                True, self.selected_language, self.icon_TEXT_Leveling, 126, 247
+            self.lcd.draw_string_centered(
+                False,
+                self.lcd.font_8x8,
+                self.color_white,
+                self.color_background_black,
+                self.MENU_CHR_W,
+                0,
+                175,
+                247,
+                "Misc"
             )
-            # self.lcd.move_screen_area(1, 84, 465, 120, 478, 182, 318)
 
     def icon_StartInfo(self, show):
         if show:
@@ -4003,6 +4135,8 @@ class E3v3seDisplay:
             self.HMI_FeatureNotAvailable()
         elif self.checkkey == self.ManualProbeProcess:
             self.HMI_ManualProbe()
+        elif self.checkkey == self.Misc:
+            self.HMI_Misc()
 
         self.time_since_movement = 0
 
@@ -4015,3 +4149,6 @@ class E3v3seDisplay:
 
 def load_config(config):
     return E3v3seDisplay(config)
+
+def load_config_prefix(config):
+    return E3v3seDisplayMacro(config)
