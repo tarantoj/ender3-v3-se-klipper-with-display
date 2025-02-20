@@ -556,7 +556,7 @@ class E3v3seDisplay:
         self._update_interval = 1
         self._update_timer = self.reactor.register_timer(self.EachMomentUpdate)
 
-    def key_event(self, key, event_time):
+    def key_event(self, key, eventtime):
         if key == 'click':
             self.encoder_state = self.ENCODER_DIFF_ENTER
         elif key == 'long_click':
