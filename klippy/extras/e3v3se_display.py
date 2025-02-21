@@ -607,11 +607,6 @@ class E3v3seDisplay:
         self.encoder_state = self.ENCODER_DIFF_NO
         return last_state
 
-    def get_encoder_multiplier(self, event_time):
-        fast_interval = 0.150 # 150ms
-        elapsed = event_time - self.last_key_event_time
-        return 10 if fast_interval >= elapsed > 0 else 1
-
     def _handle_serial_bridge_response(self, data):
         byte_debug = ' '.join(['0x{:02x}'.format(byte) for byte in data])
         self.log("Received message: " + byte_debug)
@@ -803,7 +798,7 @@ class E3v3seDisplay:
 
         custom_macro_count = len(self.custom_macros)
         
-        if encoder_state == self.ENCODER_DIFF_CW and custom_macro_count:
+        if (encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW) and custom_macro_count:
             if self.select_misc.inc(1 + custom_macro_count):
                 index = self.select_misc.now - 1 # -1 for "Back"
                 if self.select_misc.now > self.MROWS and self.select_misc.now > self.index_misc:
@@ -813,7 +808,7 @@ class E3v3seDisplay:
                     self.Draw_CustomMacroItem(index, self.MROWS)
                 else:
                     self.Move_Highlight(1, self.select_misc.now + self.MROWS - self.index_misc)# Move highlight
-        elif encoder_state == self.ENCODER_DIFF_CCW and custom_macro_count:
+        elif (encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW) and custom_macro_count:
             if self.select_misc.dec():
                 index = self.select_misc.now - 1 # -1 for "Back"
                 if self.select_misc.now < self.index_misc - self.MROWS:
