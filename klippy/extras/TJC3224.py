@@ -96,7 +96,7 @@ class TJC3224_LCD:
         :param lval: The four-byte value to be appended.
         :type lval: int
         """
-        self.data_frame += int(long_val).to_bytes(4, byteorder="big")
+        self.data_frame += int(long_val).to_bytes(4, byteorder="big", signed=True)
 
     def double_64(self, double_val):
         """
