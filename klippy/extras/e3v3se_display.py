@@ -1233,7 +1233,7 @@ class E3v3seDisplay:
                 self.color_background_black,
                 0, self.HEADER_HEIGHT,
                 self.lcd.screen_width,
-                self.lcd.screen_height - (self.MENU_CHR_W + 15) * 2
+                self.lcd.screen_height - self.MENU_CHR_W - 15
             )
             self.Draw_IconFinder()
 
