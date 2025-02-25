@@ -3778,7 +3778,8 @@ class E3v3seDisplay:
                 return
             
             self.time_since_movement = 0
-            self.popup_caller = self.checkkey
+            if self.checkkey != self.MessagePopup: 
+                self.popup_caller = self.checkkey
             self.checkkey = self.MessagePopup
             
             # Given the message length, split it into multiple lines
@@ -4183,10 +4184,8 @@ class E3v3seDisplay:
 
         # Check for errors and/or incoming messages
         if self.display_status and self.display_status.message and len(self.display_status.message) > 0 and self.last_display_status != self.display_status.message:
-            self.show_popup(self.display_status.message)
             self.last_display_status = self.display_status.message
-        else:
-            self.last_display_status = None
+            self.show_popup(self.display_status.message)
 
         self.time_since_movement += 1
         if (self.time_since_movement >= self.display_dim_timeout) & (not self.is_dimmed):
