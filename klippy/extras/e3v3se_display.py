@@ -1,6 +1,7 @@
 import logging
 import math
 import time
+import textwrap
 from .display.menu_keys import MenuKeys
 from .TJC3224 import TJC3224_LCD
 from .printerInterface import PrinterData
@@ -242,6 +243,7 @@ class E3v3seDisplay:
     Step_value = 20
     FeatureNotAvailable = 21
     ManualProbeProcess = 22
+    MessagePopup = 23
 
     # Last Process ID
     Last_Prepare = 21
@@ -574,6 +576,10 @@ class E3v3seDisplay:
         # register for key events
         E3V3SEMenuKeys(config, self.key_event)
 
+        # Message popup feature
+        self.printer.register_event_handler("klippy:notify_mcu_error", self.handle_mcu_error)
+        self.last_display_status = None
+    
         self.serial_bridge = E3V3SEPrinterSerialBridge(self.config)
 
         self.serial_bridge.register_callback(
@@ -628,6 +634,9 @@ class E3v3seDisplay:
         self.reactor.register_timer(
             self._reset_screen, self.reactor.monotonic())
 
+    def handle_mcu_error(self):
+        self.show_popup(self.printer.get_state_message())
+        
     def _reset_screen(self, eventtime):
         self.log("Reset")
         self.reactor.register_timer(
@@ -831,11 +840,11 @@ class E3v3seDisplay:
                 
                 try:
                     self.gcode.run_script_from_command(macro["gcode"])
-                except self.gcode.CommandError as e:
+                except Exception as e:
                     self.error("Error running custom macro '%s': %s" % (macro["id"], e))
                     self.gcode.respond_info("Error running custom macro '%s': %s" % (macro["id"], e))
+                    self.show_popup("Error: %s" % e)
                 
-
     def HMI_Prepare(self):
         """
         This function handles the logic for scrolling through the prepare menu options,
@@ -1161,6 +1170,32 @@ class E3v3seDisplay:
 
         if update:
             self.Draw_Manual_Probe_Menu(draw_static_elements=False, draw_error=error)
+
+    def HMI_MessagePopup(self):
+        encoder_state = self.get_encoder_state()
+        if encoder_state == self.ENCODER_DIFF_NO:
+            return
+    
+        if encoder_state == self.ENCODER_DIFF_ENTER:
+            self.checkkey = self.popup_caller
+            if self.popup_caller == self.Motion:
+                self.Draw_Motion_Menu()
+            elif self.popup_caller == self.Misc:
+                self.Draw_Misc_Menu()
+            elif self.popup_caller == self.Info:
+                self.Draw_Info_Menu()
+            elif self.popup_caller == self.TemperatureID:
+                self.Draw_Temperature_Menu()
+            elif self.popup_caller == self.Prepare:
+                self.Draw_Prepare_Menu()
+            elif self.popup_caller == self.Control:
+                self.Draw_Control_Menu()
+            elif self.popup_caller == self.Tune:
+                self.Draw_Tune_Menu()
+            else:
+                self.Goto_MainMenu()
+                
+            self.popup_caller = None
 
     # Pause and Stop window */
     def HMI_PauseOrStop(self):
@@ -2374,6 +2409,7 @@ class E3v3seDisplay:
         encoder_state = self.get_encoder_state()
         if encoder_state == self.ENCODER_DIFF_NO:
             return
+
 
     # --------------------------------------------------------------#
 
@@ -3735,6 +3771,53 @@ class E3v3seDisplay:
         )
         self.lcd.draw_rectangle(0, self.color_white, 80, 154, 160, 185)
 
+    def show_popup(self, message=""):
+        try:
+            if not message or len(message) == 0:
+                return
+            
+            self.time_since_movement = 0
+            self.popup_caller = self.checkkey
+            self.checkkey = self.MessagePopup
+            
+            # Given the message length, split it into multiple lines
+            padding = 15
+            max_line = int((self.lcd.screen_width - padding * 4) / self.MENU_CHR_W)
+            lines = textwrap.wrap(message, width=max_line)
+            
+            # Calculate sizing
+            line_height = 18
+            button_height = 31
+            height = line_height * len(lines) + button_height + padding * 3
+            y = (self.lcd.screen_height - self.HEADER_HEIGHT) / 2 - height / 2 + self.HEADER_HEIGHT
+            
+            # Draw the outline and fill
+            self.lcd.draw_rectangle(1, self.color_popup_background, padding, y, self.lcd.screen_width - padding, y + height)
+            self.lcd.draw_rectangle(0, self.color_white, padding, y, self.lcd.screen_width - padding, y + height)
+            
+            # Draw each line
+            y += padding
+            for line in lines:
+                self.lcd.draw_string(
+                    False,
+                    self.lcd.font_8x8,
+                    self.color_white,
+                    self.color_popup_background,
+                    padding * 2,
+                    y,
+                    line.strip()
+                )
+                y += line_height 
+            
+            # Draw ok button
+            y += padding
+            self.lcd.draw_icon(True, self.selected_language, self.icon_confirm_button, 80, y)
+            self.lcd.draw_rectangle(0, self.color_white, 80, y, 160, y + 31)
+        except Exception as e:
+            # I imagine that on an extreme scenario where firmware_restart is called and this tries to communicate with the LCD
+            # This could error out, very unlikely scenario, but either way it's better to catch it and log it
+            self.error("Error in show_popup: %s" % e)
+
     def Erase_Menu_Cursor(self, line):
         self.lcd.draw_rectangle(
             1,
@@ -4043,6 +4126,8 @@ class E3v3seDisplay:
                 self.Goto_PrintProcess()
             elif self.pd.status in ["operational", "complete", "standby", "cancelled"]:
                 self.Goto_MainMenu()
+            elif self.pd.status == "error":
+                self.show_popup(self.printer.get_state_message())
 
         if self.is_manual_probe_active():
             if self.checkkey != self.ManualProbeProcess:
@@ -4089,9 +4174,19 @@ class E3v3seDisplay:
         if self.pd.HMI_flag.home_flag:
             if self.pd.ishomed():
                 self.CompletedHoming()
-
-        if update and self.checkkey != self.MainMenu:
+        
+        # If not in the following, draw the status area
+        status_area_blocklist = [self.MainMenu, self.MessagePopup, self.Misc, self.ManualProbeProcess]
+        if update and self.checkkey not in status_area_blocklist:
             self.Draw_Status_Area(update)
+
+        # Check for errors and/or incoming messages
+        display_status = self.printer.lookup_object("display_status")
+        if display_status and display_status.message and len(display_status.message) > 0 and self.last_display_status != display_status.message:
+            self.show_popup(display_status.message)
+            self.last_display_status = display_status.message
+        else:
+            self.last_display_status = None
 
         self.time_since_movement += 1
         if (self.time_since_movement >= self.display_dim_timeout) & (not self.is_dimmed):
@@ -4100,7 +4195,7 @@ class E3v3seDisplay:
         elif (self.time_since_movement < self.display_dim_timeout) & (self.is_dimmed):
             self.lcd.set_backlight_brightness(40)
             self.is_dimmed = False
-
+        
         return eventtime + self._update_interval
 
     def encoder_has_data(self):
@@ -4170,7 +4265,9 @@ class E3v3seDisplay:
             self.HMI_ManualProbe()
         elif self.checkkey == self.Misc:
             self.HMI_Misc()
-
+        elif self.checkkey == self.MessagePopup:
+            self.HMI_MessagePopup()
+            
         self.time_since_movement = 0
 
     def log(self, msg, *args, **kwargs):
