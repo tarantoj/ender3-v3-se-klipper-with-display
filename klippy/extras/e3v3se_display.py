@@ -1210,6 +1210,33 @@ class E3v3seDisplay:
 
             self.popup_caller = None
 
+    def HMI_IconFinder(self):
+        encoder_state = self.get_encoder_state()
+        if encoder_state == self.ENCODER_DIFF_NO:
+            return
+        
+        updated = False
+        if encoder_state == self.ENCODER_DIFF_ENTER:
+            self.Goto_MainMenu()
+        elif encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
+            self.icon_finder_index += 1
+            if self.icon_finder_index > 255: self.icon_finder_index = 0
+            updated = True
+        elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
+            self.icon_finder_index -= 1
+            if self.icon_finder_index < 0: self.icon_finder_index = 255
+            updated = True
+
+        if updated:
+            self.lcd.draw_rectangle(
+                1,
+                self.color_background_black,
+                0, self.HEADER_HEIGHT,
+                self.lcd.screen_width,
+                self.lcd.screen_height - (self.MENU_CHR_W + 15) * 2
+            )
+            self.Draw_IconFinder()
+
     # Pause and Stop window */
     def HMI_PauseOrStop(self):
         encoder_state = self.get_encoder_state()
