@@ -411,7 +411,7 @@ class TJC3224_LCD:
             size,
             font_color,
             background_color,
-            int(x - len(string * char_width) / 2.0),
+            int(x - (len(string) * char_width) / 2.0),
             int(y - char_height / 2.0),
             string
         )
