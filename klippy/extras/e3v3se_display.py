@@ -577,6 +577,7 @@ class E3v3seDisplay:
         E3V3SEMenuKeys(config, self.key_event)
 
         # Message popup feature
+        self.display_status = self.printer.lookup_object("display_status")
         self.printer.register_event_handler("klippy:notify_mcu_error", self.handle_mcu_error)
         self.last_display_status = None
     
@@ -4181,10 +4182,9 @@ class E3v3seDisplay:
             self.Draw_Status_Area(update)
 
         # Check for errors and/or incoming messages
-        display_status = self.printer.lookup_object("display_status")
-        if display_status and display_status.message and len(display_status.message) > 0 and self.last_display_status != display_status.message:
-            self.show_popup(display_status.message)
-            self.last_display_status = display_status.message
+        if self.display_status and self.display_status.message and len(self.display_status.message) > 0 and self.last_display_status != self.display_status.message:
+            self.show_popup(self.display_status.message)
+            self.last_display_status = self.display_status.message
         else:
             self.last_display_status = None
 
