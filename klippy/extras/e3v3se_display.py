@@ -209,6 +209,7 @@ class E3v3seDisplay:
     select_confirm = select_t()
     select_cancel = select_t()
     select_misc = select_t()
+    select_icon_finder = select_t()
 
     index_file = MROWS
     index_prepare = MROWS
@@ -585,7 +586,6 @@ class E3v3seDisplay:
         self.last_display_status = None
 
         # Icon finder feature
-        self.icon_finder_index = 0
         self.gcode.register_command("ENDER_SE_DISPLAY_ICON_FINDER", self.cmd_IconFinder, desc="Icon Finder")
 
         self.serial_bridge = E3V3SEPrinterSerialBridge(self.config)
@@ -627,6 +627,7 @@ class E3v3seDisplay:
 
     def cmd_IconFinder(self, gcmd):
         self.checkkey = self.IconFinder
+        self.select_icon_finder.reset()
         self.Clear_Screen()
         self.Draw_IconFinder()
 
@@ -1219,12 +1220,10 @@ class E3v3seDisplay:
         if encoder_state == self.ENCODER_DIFF_ENTER:
             self.Goto_MainMenu()
         elif encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
-            self.icon_finder_index += 1
-            if self.icon_finder_index > 255: self.icon_finder_index = 0
+            self.select_icon_finder.inc(255)
             updated = True
         elif encoder_state == self.ENCODER_DIFF_CCW or encoder_state == self.ENCODER_DIFF_FAST_CCW:
-            self.icon_finder_index -= 1
-            if self.icon_finder_index < 0: self.icon_finder_index = 255
+            self.select_icon_finder.dec()
             updated = True
 
         if updated:
@@ -3628,7 +3627,7 @@ class E3v3seDisplay:
         self.lcd.draw_icon(
             True,
             self.ICON,
-            self.icon_finder_index,
+            self.select_icon_finder.now,
             self.lcd.screen_width / 2 - 16,
             self.lcd.screen_height / 2 - 16
         )
@@ -3642,7 +3641,7 @@ class E3v3seDisplay:
             0,
             self.lcd.screen_width / 2,
             self.lcd.screen_height - (self.MENU_CHR_W + 15) * 2,
-            "Icon %i" % self.icon_finder_index
+            "Icon %i" % self.select_icon_finder.now
         )
 
         # Draw footer
