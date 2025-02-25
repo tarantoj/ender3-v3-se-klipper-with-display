@@ -149,24 +149,24 @@ class E3v3seDisplayMacro:
         printer = self.config.get_printer()
         parent = printer.lookup_object("e3v3se_display")
         id = config.get_name().split()[1]
-        
+
         if not id.startswith("MACRO"):
             parent.error("Invalid section '%s'" % id)
             raise Exception("Invalid section '%s'" % id)
-        
+
         gcode = config.get("gcode")
         label = config.get("label")
         icon = config.getint("icon", 14) # Defaults to icon_file
 
         parent.log("E3V3SE Display MACRO: id: '%s' label: '%s' icon: '%i' gcode: '%s'" % (id, label, icon, gcode))
-        
+
         parent.custom_macros.append({
             "id": id,
             "icon": icon,
             "label": label,
             "gcode": gcode
         })
-        
+
 
 class E3v3seDisplay:
 
@@ -242,8 +242,6 @@ class E3v3seDisplay:
     Step = 19
     Step_value = 20
     FeatureNotAvailable = 21
-    ManualProbeProcess = 22
-    MessagePopup = 23
 
     # Last Process ID
     Last_Prepare = 21
@@ -266,6 +264,11 @@ class E3v3seDisplay:
 
     Print_window = 33
     Popup_Window = 34
+
+    # New menus
+    ManualProbeProcess = 35
+    MessagePopup = 36
+    IconFinder = 37
 
     MINUNITMULT = 10
 
@@ -569,7 +572,7 @@ class E3v3seDisplay:
         self.manual_probe = None
         self.manual_probe_step_index = 0
         self.stepper_z = config.getsection("stepper_z")
-        
+
         # Custom macro feature
         self.custom_macros = []
 
@@ -580,7 +583,11 @@ class E3v3seDisplay:
         self.display_status = self.printer.lookup_object("display_status")
         self.printer.register_event_handler("klippy:notify_mcu_error", self.handle_mcu_error)
         self.last_display_status = None
-    
+
+        # Icon finder feature
+        self.icon_finder_index = 0
+        self.gcode.register_command("ENDER_SE_DISPLAY_ICON_FINDER", self.cmd_IconFinder, desc="Icon Finder")
+
         self.serial_bridge = E3V3SEPrinterSerialBridge(self.config)
 
         self.serial_bridge.register_callback(
@@ -608,7 +615,7 @@ class E3v3seDisplay:
             self.encoder_state = self.ENCODER_DIFF_FAST_CW
 
         self.encoder_has_data()
-        
+
     def get_encoder_state(self):
         last_state = self.encoder_state
         self.encoder_state = self.ENCODER_DIFF_NO
@@ -617,6 +624,11 @@ class E3v3seDisplay:
     def _handle_serial_bridge_response(self, data):
         byte_debug = ' '.join(['0x{:02x}'.format(byte) for byte in data])
         self.log("Received message: " + byte_debug)
+
+    def cmd_IconFinder(self, gcmd):
+        self.checkkey = self.IconFinder
+        self.Clear_Screen()
+        self.Draw_IconFinder()
 
     def send_text(self, text):
         self.serial_bridge.send_text(text)
@@ -637,7 +649,7 @@ class E3v3seDisplay:
 
     def handle_mcu_error(self):
         self.show_popup(self.printer.get_state_message())
-        
+
     def _reset_screen(self, eventtime):
         self.log("Reset")
         self.reactor.register_timer(
@@ -800,14 +812,14 @@ class E3v3seDisplay:
                     self.Goto_PrintProcess()
                 else:
                     self.Redraw_SD_List()
-                    
+
     def HMI_Misc(self):
         encoder_state = self.get_encoder_state()
         if encoder_state == self.ENCODER_DIFF_NO:
             return
 
         custom_macro_count = len(self.custom_macros)
-        
+
         if (encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW) and custom_macro_count:
             if self.select_misc.inc(1 + custom_macro_count):
                 index = self.select_misc.now - 1 # -1 for "Back"
@@ -838,14 +850,14 @@ class E3v3seDisplay:
             else:
                 macro = self.custom_macros[self.select_misc.now - 1]
                 self.log("Running custom macro '%s'" % macro["id"])
-                
+
                 try:
                     self.gcode.run_script_from_command(macro["gcode"])
                 except Exception as e:
                     self.error("Error running custom macro '%s': %s" % (macro["id"], e))
                     self.gcode.respond_info("Error running custom macro '%s': %s" % (macro["id"], e))
                     self.show_popup("Error: %s" % e)
-                
+
     def HMI_Prepare(self):
         """
         This function handles the logic for scrolling through the prepare menu options,
@@ -1146,7 +1158,7 @@ class E3v3seDisplay:
         max_z = self.stepper_z.getfloat("position_max", self.pd.Z_MAX_POS, note_valid=False)
         update = False
         error = False
-        
+
         if encoder_state == self.ENCODER_DIFF_CW or encoder_state == self.ENCODER_DIFF_FAST_CW:
             if math.floor(current_pos - step) <= min_z:
                 self.error(f"Ignoring move '{current_pos - step}' as it is lower than Z limit '{min_z}'!")
@@ -1176,7 +1188,7 @@ class E3v3seDisplay:
         encoder_state = self.get_encoder_state()
         if encoder_state == self.ENCODER_DIFF_NO:
             return
-    
+
         if encoder_state == self.ENCODER_DIFF_ENTER:
             self.checkkey = self.popup_caller
             if self.popup_caller == self.Motion:
@@ -1195,7 +1207,7 @@ class E3v3seDisplay:
                 self.Draw_Tune_Menu()
             else:
                 self.Goto_MainMenu()
-                
+
             self.popup_caller = None
 
     # Pause and Stop window */
@@ -1446,7 +1458,7 @@ class E3v3seDisplay:
         Handles the X axis move logic based on the encoder input.
         """
         encoder_state = self.get_encoder_state()
-        
+
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1514,7 +1526,7 @@ class E3v3seDisplay:
         Handles the Y axis move logic based on the encoder input.
         """
         encoder_state = self.get_encoder_state()
-        
+
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1582,7 +1594,7 @@ class E3v3seDisplay:
         Handles the Z axis move logic based on the encoder input.
         """
         encoder_state = self.get_encoder_state()
-            
+
         if encoder_state == self.ENCODER_DIFF_NO:
             return
         elif encoder_state == self.ENCODER_DIFF_ENTER:
@@ -1650,7 +1662,7 @@ class E3v3seDisplay:
         """
         self.pd.last_E_scale = 0
         encoder_state = self.get_encoder_state()
-        
+
         if encoder_state == self.ENCODER_DIFF_NO:
             return
 
@@ -2957,12 +2969,12 @@ class E3v3seDisplay:
             self.HEADER_HEIGHT / 2,
             "Miscellaneous"
         )
-        
+
         self.select_misc.reset()
         self.index_misc = self.MROWS
         self.Clear_Menu_Area() # Leave title bar unchanged, clear only middle of screen
         self.Draw_Back_First()
-        
+
         custom_macro_count = len(self.custom_macros)
         if custom_macro_count > 0:
             if custom_macro_count > self.MROWS:
@@ -3572,6 +3584,53 @@ class E3v3seDisplay:
                 "Out of range!"
             )
 
+    def Draw_IconFinder(self):
+        # Draw header
+        self.lcd.draw_string_centered(
+            False,
+            self.lcd.font_8x8,
+            self.color_white,
+            self.color_background_black,
+            self.MENU_CHR_W,
+            self.MENU_CHR_W,
+            self.lcd.screen_width / 2,
+            self.HEADER_HEIGHT / 2,
+            f"Icon finder"
+        )
+
+        self.lcd.draw_icon(
+            True,
+            self.ICON,
+            self.icon_finder_index,
+            self.lcd.screen_width / 2 - 16,
+            self.lcd.screen_height / 2 - 16
+        )
+
+        self.lcd.draw_string_centered(
+            False,
+            self.lcd.font_8x8,
+            self.color_yellow,
+            self.color_background_black,
+            self.MENU_CHR_W,
+            0,
+            self.lcd.screen_width / 2,
+            self.lcd.screen_height - (self.MENU_CHR_W + 15) * 2,
+            "Icon %i" % self.icon_finder_index
+        )
+
+        # Draw footer
+        self.lcd.draw_string_centered(
+            False,
+            self.lcd.font_8x8,
+            self.color_white,
+            self.color_background_black,
+            self.MENU_CHR_W,
+            0,
+            self.lcd.screen_width / 2,
+            self.lcd.screen_height - self.MENU_CHR_W - 15,
+            "Press to exit"
+        )
+
     def Goto_MainMenu(self):
         self.checkkey = self.MainMenu
         self.Clear_Screen()
@@ -3794,27 +3853,27 @@ class E3v3seDisplay:
         try:
             if not message or len(message) == 0:
                 return
-            
+
             self.time_since_movement = 0
-            if self.checkkey != self.MessagePopup: 
+            if self.checkkey != self.MessagePopup:
                 self.popup_caller = self.checkkey
             self.checkkey = self.MessagePopup
-            
+
             # Given the message length, split it into multiple lines
             padding = 15
             max_line = int((self.lcd.screen_width - padding * 4) / self.MENU_CHR_W)
             lines = textwrap.wrap(message, width=max_line)
-            
+
             # Calculate sizing
             line_height = 18
             button_height = 31
             height = line_height * len(lines) + button_height + padding * 3
             y = (self.lcd.screen_height - self.HEADER_HEIGHT) / 2 - height / 2 + self.HEADER_HEIGHT
-            
+
             # Draw the outline and fill
             self.lcd.draw_rectangle(1, self.color_popup_background, padding, y, self.lcd.screen_width - padding, y + height)
             self.lcd.draw_rectangle(0, self.color_white, padding, y, self.lcd.screen_width - padding, y + height)
-            
+
             # Draw each line
             y += padding
             for line in lines:
@@ -4152,7 +4211,7 @@ class E3v3seDisplay:
         if self.is_manual_probe_active():
             if self.checkkey != self.ManualProbeProcess:
                 self.Goto_ManualProbe_Menu()
-                
+
             # Ensure the status area won't redraw
             update = False
         elif self.checkkey == self.ManualProbeProcess:
@@ -4194,9 +4253,9 @@ class E3v3seDisplay:
         if self.pd.HMI_flag.home_flag:
             if self.pd.ishomed():
                 self.CompletedHoming()
-        
+
         # If not in the following, draw the status area
-        status_area_blocklist = [self.MainMenu, self.MessagePopup, self.Misc, self.ManualProbeProcess]
+        status_area_blocklist = [self.MainMenu, self.MessagePopup, self.Misc, self.ManualProbeProcess, self.IconFinder]
         if update and self.checkkey not in status_area_blocklist:
             self.Draw_Status_Area(update)
 
@@ -4212,7 +4271,7 @@ class E3v3seDisplay:
         elif (self.time_since_movement < self.display_dim_timeout) & (self.is_dimmed):
             self.lcd.set_backlight_brightness(40)
             self.is_dimmed = False
-        
+
         return eventtime + self._update_interval
 
     def encoder_has_data(self):
@@ -4284,7 +4343,9 @@ class E3v3seDisplay:
             self.HMI_Misc()
         elif self.checkkey == self.MessagePopup:
             self.HMI_MessagePopup()
-            
+        elif self.checkkey == self.IconFinder:
+            self.HMI_IconFinder()
+
         self.time_since_movement = 0
 
     def log(self, msg, *args, **kwargs):
