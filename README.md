@@ -50,18 +50,22 @@ Some examples for your inspiration:
 gcode: LOAD_FILAMENT
 label: Load filament
 icon: 14
+
 [e3v3se_display MACRO2]
 gcode: UNLOAD_FILAMENT
 label: Unload filament
 icon: 14
+
 [e3v3se_display MACRO3]
 gcode: CALIBRATE_Z_OFFSET
 label: Calibrate Z offset
 icon: 12
+
 [e3v3se_display MACRO4]
 gcode: CALIBRATE_BED_MESH
 label: Calibrate bed mesh
 icon: 29
+
 [e3v3se_display MACRO5]
 gcode: CLEAN_NOZZLE
 label: Clean nozzle
