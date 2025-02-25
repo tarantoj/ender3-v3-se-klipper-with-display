@@ -2933,22 +2933,40 @@ class E3v3seDisplay:
             for i in range(custom_macro_count):
                 self.Draw_CustomMacroItem(i, i + 1)
         else:
-            self.lcd.draw_rectangle(
-                1,
-                self.color_background_red,
-                11,
-                25,
-                self.MBASE(3) - 10,
-                self.lcd.screen_width - 10
-            )
-            self.lcd.draw_string(
+            self.lcd.draw_string_centered(
                 False,
                 self.lcd.font_16x32,
-                self.color_yellow,
-                self.color_background_red,
-                (self.lcd.screen_width - 9 * 16) / 2,
-                self.MBASE(3),
-                "No Macros"
+                self.color_white,
+                self.color_background_black,
+                14,
+                32,
+                self.lcd.screen_width / 2,
+                self.lcd.screen_height / 2,
+                "No macros"
+            )
+
+            self.lcd.draw_string_centered(
+                False,
+                self.lcd.font_8x8,
+                self.color_white,
+                self.color_background_black,
+                self.MENU_CHR_W,
+                0,
+                self.lcd.screen_width / 2,
+                self.lcd.screen_height / 2 + 32,
+                "Please follow WIKI"
+            )
+
+            self.lcd.draw_string_centered(
+                False,
+                self.lcd.font_8x8,
+                self.color_white,
+                self.color_background_black,
+                self.MENU_CHR_W,
+                0,
+                self.lcd.screen_width / 2,
+                self.lcd.screen_height / 2 + 45,
+                "to include macros here"
             )
 
     def Draw_Info_Menu(self):
