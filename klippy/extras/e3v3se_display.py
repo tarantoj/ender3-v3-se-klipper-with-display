@@ -577,11 +577,9 @@ class E3v3seDisplay:
         E3V3SEMenuKeys(config, self.key_event)
 
         # Message popup feature
-        self.printer.register_event_handler("klippy:notify_mcu_error", self.handle_mcu_error)
-        if self.printer.lookup_object("display_status", default=None) is None and "M117" not in self.gcode.ready_gcode_handlers:
-            self.gcode.register_command("M117", self.cmd_M117)
-        
+        self.display_status = None
         self.last_display_status = None
+        self.printer.register_event_handler("klippy:notify_mcu_error", self.handle_mcu_error)
     
         self.serial_bridge = E3V3SEPrinterSerialBridge(self.config)
 
@@ -634,8 +632,15 @@ class E3v3seDisplay:
 
     def handle_ready(self):
         self.pd.handle_ready()
-        self.reactor.register_timer(
-            self._reset_screen, self.reactor.monotonic())
+        self.reactor.register_timer(self._reset_screen, self.reactor.monotonic())
+
+        # Message popup feature
+        try:
+            self.display_status = self.printer.lookup_object("display_status", default=None)
+            if self.display_status is None and "M117" not in self.gcode.ready_gcode_handlers:
+                self.gcode.register_command("M117", self.cmd_M117)
+        except Exception as e: 
+            self.error("Error registering M117: %s" % e)
 
     def handle_mcu_error(self):
         self.show_popup(self.printer.get_state_message())
@@ -4208,10 +4213,9 @@ class E3v3seDisplay:
             self.Draw_Status_Area(update)
 
         # Check for errors and/or incoming messages
-        display_status = self.printer.lookup_object("display_status", default=None)
-        if display_status is not None and display_status.message and len(display_status.message) > 0 and self.last_display_status != display_status.message:
-            self.show_popup(display_status.message)
-            self.last_display_status = display_status.message
+        if self.display_status is not None and self.display_status.message and len(self.display_status.message) > 0 and self.last_display_status != self.display_status.message:
+            self.show_popup(self.display_status.message)
+            self.last_display_status = self.display_status.message
 
         self.time_since_movement += 1
         if (self.time_since_movement >= self.display_dim_timeout) & (not self.is_dimmed):
