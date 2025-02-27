@@ -578,7 +578,7 @@ class E3v3seDisplay:
 
         # Message popup feature
         self.printer.register_event_handler("klippy:notify_mcu_error", self.handle_mcu_error)
-        if self.printer.lookup_object("display_status", default=None) is None:
+        if self.printer.lookup_object("display_status", default=None) is None and "M117" not in self.gcode.ready_gcode_handlers:
             self.gcode.register_command("M117", self.cmd_M117)
         
         self.last_display_status = None
