@@ -577,8 +577,10 @@ class E3v3seDisplay:
         E3V3SEMenuKeys(config, self.key_event)
 
         # Message popup feature
-        self.display_status = self.printer.lookup_object("display_status")
         self.printer.register_event_handler("klippy:notify_mcu_error", self.handle_mcu_error)
+        if self.printer.lookup_object("display_status", default=None) is None:
+            self.gcode.register_command("M117", self.cmd_M117)
+        
         self.last_display_status = None
     
         self.serial_bridge = E3V3SEPrinterSerialBridge(self.config)
@@ -637,6 +639,11 @@ class E3v3seDisplay:
 
     def handle_mcu_error(self):
         self.show_popup(self.printer.get_state_message())
+
+    def cmd_M117(self, gcmd):
+        msg = gcmd.get_raw_command_parameters() or None
+        if msg is not None:
+            self.show_popup(msg)
         
     def _reset_screen(self, eventtime):
         self.log("Reset")
@@ -4201,9 +4208,10 @@ class E3v3seDisplay:
             self.Draw_Status_Area(update)
 
         # Check for errors and/or incoming messages
-        if self.display_status and self.display_status.message and len(self.display_status.message) > 0 and self.last_display_status != self.display_status.message:
-            self.last_display_status = self.display_status.message
-            self.show_popup(self.display_status.message)
+        display_status = self.printer.lookup_object("display_status", default=None)
+        if display_status is not None and display_status.message and len(display_status.message) > 0 and self.last_display_status != display_status.message:
+            self.show_popup(display_status.message)
+            self.last_display_status = display_status.message
 
         self.time_since_movement += 1
         if (self.time_since_movement >= self.display_dim_timeout) & (not self.is_dimmed):
