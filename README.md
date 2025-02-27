@@ -71,6 +71,8 @@ gcode: CLEAN_NOZZLE
 label: Clean nozzle
 icon: 9
 ```
+To browse icon library, call the macro `ENDER_SE_DISPLAY_ICON_FINDER` on your Klipper console and use the screen to navigate through the icons.
+
 
 ## Supported features
 The currently supported features are:
